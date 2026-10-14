@@ -1,0 +1,44 @@
+name: Bug report
+description: Report incorrect compiler behavior with a minimal reproduction
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "AIN is experimental. Please avoid sharing secrets or security exploit details in public issues."
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the incorrect behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Minimal AIN reproduction
+      description: Include the smallest source program that reproduces the issue.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and output
+      description: Paste the actual command and any errors.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, compiler commit, backend, and Rust/Clang versions where applicable.
+    validations:
+      required: true

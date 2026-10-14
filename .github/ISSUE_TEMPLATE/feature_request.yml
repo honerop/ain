@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest a language, compiler, or documentation improvement
+title: "[idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What problem does this solve for AIN or AI-written programs?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Include syntax or IR examples where helpful.
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Tradeoffs and alternatives
+      description: Consider runtime speed, compile time, token cost and correctness.
+    validations:
+      required: false

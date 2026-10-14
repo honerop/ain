@@ -1,124 +1,187 @@
-# AIN compiler v0.2.0: self-hosting bootstrap
+# AIN
 
-AIN is an experimental, compact, prefix programming language built for AI-written code. Its source syntax removes `fn`, function-call parentheses, return statements and explicit types when inference suffices.
+**An experimental programming language designed for AI agents.**
 
-**v0.2.0 adds a self-hosted compiler written in AIN** (`bootstrap/compiler.ain`). It reads AIN source from standard input and emits C source against `runtime/ain_runtime.h`. The original compiler written in Rust remains the **stage-zero compiler**: it typechecks AIN and emits Rust to be compiled with `rustc`.
+[![CI](https://github.com/honerop/ain/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/honerop/ain/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/implementation-Rust-orange.svg)](https://www.rust-lang.org/)
+[![Status](https://img.shields.io/badge/status-experimental-yellow.svg)](#project-status)
 
-This is an experimental bootstrapping milestone, not yet a fully production-ready compiler. The self-hosted C backend currently supports a bootstrap subset of the Rust compiler's features, performs only minimal validation, and uses a tagged-value runtime instead of statically specialized C types. It does *not* yet reproduce the Rust compiler's full static type checking or optimization.
+AIN explores a simple question: **what would a programming language look like if it were designed for AI-generated code instead of human typing?**
 
-## Syntax
+The source language uses compact, fixed-arity prefix expressions, automatic primitive type inference, and very little punctuation. The compiler experiments with native-code generation, a custom typed intermediate representation called **AIR**, and self-hosting.
+
+> [!IMPORTANT]
+> **Experimental / pre-alpha.** AIN is a research prototype, not a production-ready language. The LLVM backend supports only a subset of the language, compiler correctness and performance have not been comprehensively benchmarked, and CI is not currently green. Please do not deploy untrusted AIN programs.
+
+## A first look
 
 ```text
 add a b = + a b
 square x = * x x
-print add square 3 square 4
-say _ = print "Hello from AIN"
-say _
+
+result = add square 3 square 4
+print result
 ```
 
-`_` is a unit argument. All calls use fixed-arity prefix syntax. `if`, `and`, and `or` evaluate only the required branch.
+Output:
 
-## Build and bootstrap on NixOS
+```text
+25
+```
+
+There is no `fn` keyword, no call parentheses, and no declared integer types. The compiler discovers function arities from definitions and infers primitive types.
+
+Unit-argument functions use `_`:
+
+```text
+greet _ = print "Hello from AIN"
+greet _
+```
+
+For more examples, see [`examples/`](examples/) and the [language guide](docs/language.md).
+
+## Quick start
+
+**NixOS / Nix (recommended)**
 
 ```sh
+git clone https://github.com/honerop/ain.git
+cd ain
 nix develop
 cargo test
-./scripts/bootstrap.sh
+cargo run -- run examples/arithmetic.ain
 ```
 
-Or with Rust, GCC, and Python installed without Nix:
+**Other systems:** install Rust/Cargo and the native tools listed below, then run the same `cargo` commands from the repository root.
+
+| Dependency | Used for |
+| --- | --- |
+| Rust / Cargo | Building the stage-zero compiler |
+| `rustc` | Rust source backend, build and run |
+| Clang with LLVM IR support | Experimental native LLVM backend |
+| GCC | Self-hosted C bootstrap compiler |
+| Python 3 | Independent stage-zero reference bootstrap |
+
+Try the experimental direct LLVM path for supported numeric/boolean programs:
 
 ```sh
-cargo test
+cargo run -- air examples/recursive.ain
+cargo run -- llvm examples/recursive.ain
+cargo run -- run-llvm examples/recursive.ain
+```
+
+The recursive example should print `720` and `42`.
+
+### Compiler commands
+
+| Command | Purpose |
+| --- | --- |
+| `cargo run -- check file.ain` | Parse and type-check an AIN program |
+| `cargo run -- transpile file.ain` | Generate Rust source |
+| `cargo run -- run file.ain` | Compile through Rust and execute |
+| `cargo run -- build file.ain -o app` | Build a native executable through Rust |
+| `cargo run -- air file.ain` | Inspect the experimental typed AIR |
+| `cargo run -- llvm file.ain` | Generate LLVM IR directly |
+| `cargo run -- run-llvm file.ain` | Build through Clang and execute |
+| `cargo run -- build-llvm file.ain -o app` | Build through Clang with optimizations |
+
+LLVM commands currently **reject unsupported operations**, including strings. They do not silently fall back to C.
+
+## Architecture
+
+```text
+                         AIN source
+                             |
+                     Parser + type inference
+                             |
+                 +-----------+------------+
+                 |                        |
+       Rust code generator         Typed AIR (experimental)
+                 |                        |
+               rustc                 LLVM IR emitter
+                 |                        |
+          Native executable           Clang / LLVM
+                                          |
+                                   Native executable
+
+                 Self-hosting experiment:
+    bootstrap/compiler.ain -> C source -> GCC + small C runtime
+```
+
+AIN currently has **three distinct paths**:
+
+| Path | Status | Notes |
+| --- | --- | --- |
+| Rust stage zero → Rust → native | Available / experimental | Primitive monomorphic type inference and more library operations |
+| Typed AIR → LLVM IR → native | Experimental subset | Unboxed integers, booleans, units, recursion, checked arithmetic, conditionals |
+| Self-hosted AIN → C → native | Bootstrap proof of concept | Compiler source is written in AIN, but uses a tagged-value C runtime |
+
+**The production direction is typed AIR → LLVM IR → native code.** The C compiler is retained as a bootstrapping demonstration, not as the intended performance backend. The LLVM path is *not yet self-hosting*.
+
+See [Architecture](docs/architecture.md) for backend boundaries and verification status.
+
+## Self-hosting
+
+The compiler in [`bootstrap/compiler.ain`](bootstrap/compiler.ain) can compile its own AIN source through successive stages.
+
+```sh
 ./scripts/bootstrap.sh
 ```
 
-`bootstrap.sh` executes these stages:
+This uses the Rust stage-zero compiler, then recompiles the AIN compiler through C and checks whether successive stages emit byte-identical C source.
 
-1. **Stage 0 (Rust)**: compile `bootstrap/compiler.ain` using the Rust AIN compiler (`cargo run -- build ...`). The result is a native executable of the AIN-written compiler, implemented by the Rust-generated source.
-2. **Stage 1 (AIN → C)**: run that binary on `bootstrap/compiler.ain`, emitting `build/stage1.c`. GCC builds `build/stage1` using the included runtime.
-3. **Stage 2 (AIN → C)**: run stage 1 on the same `.ain` source, generating `build/stage2.c`. Build `build/stage2` with GCC.
-4. **Stage 3**: run stage 2 on `bootstrap/compiler.ain` to generate `build/stage3.c`.
-5. Assert `stage1.c == stage2.c == stage3.c` byte-for-byte, then compile and execute sample programs through the stage-two compiler.
-
-All stages after stage zero compile AIN using a compiler **written in AIN**. A C compiler and small trusted runtime remain necessary. The C generated at each stage is checked for a fixed point; binary bytes are not expected to match because host compiler flags or environments may vary.
-
-### Offline GCC/reference test without Rust
+A separate offline reference route uses Python, GCC, and the same AIN compiler source:
 
 ```sh
 ./scripts/bootstrap.sh --reference
 ```
 
-This uses `scripts/stage0_reference.py`, an independent Python stage-zero AIN subset compiler, rather than the Rust stage-zero compiler. **This mode actually verifies the stage-one/stage-two/stage-three self-hosting cycle**, but does *not* verify that the Rust stage-zero compiler accepts and builds the bootstrap source. Use the default command for that stronger end-to-end check.
+The **reference route has been verified** with the included example programs. The default Rust-first bootstrap still needs independent verification in a working Rust CI environment. The current GitHub Actions history contains failures, so do not treat the CI badge as proof of a passing release.
 
-### Compile another AIN file using the self-hosted compiler
+## Project status
 
-```sh
-./build/stage2 < examples/recursive.ain > build/example.c
-gcc -std=gnu11 -O2 -I runtime build/example.c -o build/example
-./build/example
-```
+**Version:** 0.3.0 experimental source milestone (not a stable release).
 
-Expected output: `720` followed by `42`.
+**Implemented or partially implemented**
 
-## v0.2.0 builtins added to Rust stage zero
+- Parenthesis-free, fixed-arity prefix expressions.
+- Inferred primitive types and checked integer arithmetic.
+- Function declarations without `fn`, with recursion and forward references.
+- Basic string operations and printing in the Rust backend.
+- Initial typed AIR with direct LLVM IR emission for supported primitives.
+- Three-generation, C-based bootstrap experiment.
 
-| Builtin | Signature | Purpose |
-|---|---|---|
-| `input _` | unit → string | Read all standard input |
-| `word s` | string → string | First raw lexical token, respecting string quotes and comments |
-| `skip s` | string → string | Remainder after the first raw lexical token |
-| `before s sep` | string × string → string | Prefix before the first occurrence (whole string if absent) |
-| `after s sep` | string × string → string | Suffix after the first occurrence (empty if absent) |
-| `num s` | string → integer | Parse signed 64-bit integer |
-| `isnum s` | string → boolean | Test for a signed 64-bit integer literal |
+**Not yet available**
 
-`input`, `word`, and `skip` make it possible to implement the signature pass, recursive prefix parser, and C emitter in AIN. They also become part of the trusted C bootstrap runtime. The stage-one compiler handles name/arity discovery, function forward declarations, expression parsing, and C code generation in AIN source.
+- Full-featured self-hosted AIR/LLVM compiler.
+- General-purpose collections, records, modules, generics, closures, and ownership analysis.
+- Complete cross-backend semantic parity or extensive fuzzing.
+- Proven performance advantage over Rust, C, or C++.
+- A stable library/API, packages, or production security sandbox.
 
-## Project files
+The immediate priority is **compiler correctness**, then feature parity and reproducible performance benchmarks. Runtime performance is the primary optimization goal; compilation time and AI token efficiency remain important.
+
+## Repository layout
 
 ```text
-bootstrap/compiler.ain          Self-hosted AIN -> C compiler (AIN source)
-runtime/ain_runtime.h          Small tagged-value runtime used by generated C
-src/compiler.rs               Rust-based stage-zero compiler (AIN -> Rust)
-src/main.rs                   Stage-zero CLI (check, transpile, build, run)
-scripts/bootstrap.sh          End-to-end bootstrap and fixed-point verification
-scripts/stage0_reference.py    Independent offline stage-zero checker/compiler
-examples/                     Programs compiled by the self-hosted compiler
-tests/                        Rust compiler tests
+bootstrap/           AIN-written self-hosted compiler
+src/compiler.rs      Rust parser, type inference, Rust backend
+src/compiler/air.rs  Experimental AIR + LLVM IR backend
+runtime/             Tagged-value C runtime for the bootstrap
+examples/            Small AIN programs
+scripts/             Bootstrap scripts and independent reference compiler
+tests/               Compiler / LLVM integration tests
+docs/                Language and architecture documentation
+.github/             CI and contributor templates
 ```
 
-## Constraints and limitations
+## Contributing
 
-- The self-hosted compiler covers the grammar and builtins required to compile itself and the included examples. It is not a full replacement for the stage-zero Rust compiler yet.
-- The self-hosted C path uses tagged dynamic values and allocates temporary strings until the process exits. This is adequate for demonstration, not a memory-efficient production runtime.
-- C runtime string case conversion is ASCII-oriented and does not exactly match Rust's Unicode behavior.
-- The self-hosted compiler does not implement stage-zero's static type inference, complete identifier validation, or line-numbered diagnostics. GCC may reject source that Rust stage zero would reject earlier.
-- Native compilation requires GCC (C11 with GNU extensions for checked arithmetic) or a compatible compiler.
-- Generated C is **not sandboxed**. Do not compile or execute untrusted AIN programs.
-- No user-defined records, generic types, modules, closures, automatic concurrency, macros, or incremental AST edits.
-- The self-hosted compiler reads from stdin and writes generated C to stdout; there is no native CLI argument parser in AIN yet.
-- The development environment used for this release has GCC and Python, but no Rust toolchain or network access to install one. The **offline reference bootstrap was executed successfully**, including all three matching generated C stages and the sample programs. The default Rust-first bootstrap has not been run in this environment.
+AIN is early-stage and changing quickly. Bug reports, minimal reproductions, test cases, and benchmark proposals are especially valuable.
 
-## Next milestones
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [the code of conduct](CODE_OF_CONDUCT.md) before contributing. Issues and pull requests are welcome; start with a small, testable change.
 
-A self-hosted type checker, unified optimized IR/backends, improved lexical/token parsing, stable module system, diagnostics, and integrated performance/token-count benchmarks. MIT license.
+## License
 
-## Experimental AIR and LLVM backend (0.3.0)
-
-AIN now has an initial **AIR (AIN Intermediate Representation)** typed IR and a direct LLVM backend for numeric/boolean programs. It lowers AIN expressions to concrete SSA values (`i64`, `i1`, `i8`) and emits LLVM IR, **not C source**. Checked arithmetic invokes LLVM overflow intrinsics and traps on overflow rather than silently changing arithmetic semantics.
-
-```bash
-nix develop
-cargo test
-cargo run -- air examples/recursive.ain
-cargo run -- llvm examples/recursive.ain -o build/recursive.ll
-cargo run -- run-llvm examples/recursive.ain
-cargo run -- build-llvm examples/arithmetic.ain -o build/arithmetic
-```
-
-AIR performs small safe folds before LLVM optimization. Clang `-O3` performs the machine-code optimization and linking. The compiler currently emits LLVM IR text directly, rather than calling the LLVM APIs through a binding.
-
-**Supported in this backend:** fixed-arity user functions, recursion, integer/boolean/unit values, top-level values, checked `+ - * / %`, `neg`, `abs`, `pow`, `min`, `max`, `clamp`, comparisons, lazy `if`, `and`, `or`, and `print` of primitive values. The self-hosted `bootstrap/compiler.ain` and string/file operations still require the original compiler and C bootstrap path. A compiler error, not a fallback to C, is emitted for unsupported LLVM features.
-
-The LLVM pipeline is an **experimental preview**. It is not self-hosted and not evidence of faster performance than optimized Rust or C. Benchmark runtime and compile time with matched semantics and equivalent optimization settings before claiming performance improvements.
+[MIT](LICENSE). © 2026 AIN contributors.
