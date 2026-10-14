@@ -1,0 +1,15 @@
+[package]
+name = "ain-compiler"
+version = "0.2.0"
+edition = "2021"
+description = "A tiny statically typed AI-native language transpiler"
+license = "MIT"
+
+[[bin]]
+name = "ainc"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

@@ -1,0 +1,4 @@
+# Higher-order operations are not supported yet; if is a fixed-arity special form.
+absdiff a b = if > a b - a b - b a
+print absdiff 100 54
+print absdiff 3 9

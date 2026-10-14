@@ -1,0 +1,3 @@
+# Unit-argument function, no 'fn' keyword or parentheses
+i _ = print "I"
+i _

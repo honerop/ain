@@ -1,0 +1,16 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust compiler tests
+        run: cargo test
+      - name: Rust-first three-stage bootstrap
+        run: ./scripts/bootstrap.sh
+      - name: Independent reference bootstrap
+        run: ./scripts/bootstrap.sh --reference

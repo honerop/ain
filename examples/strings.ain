@@ -1,0 +1,5 @@
+greet name = concat "Hello, " name
+name = upper "agent"
+print greet name
+print len "Zażółć"
+print replace "a-b-c" "-" "_"

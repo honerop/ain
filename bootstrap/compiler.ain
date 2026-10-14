@@ -1,0 +1,60 @@
+# AIN self-hosted bootstrap compiler.
+# Reads AIN from stdin; emits C (runtime/ain_runtime.h).
+# Functions are pure except input/print. All parsing and codegen are AIN.
+
+pack a b = concat a concat "\n" b
+first p = before p "\n"
+second p = after p "\n"
+join a b = concat a b
+line s = before s "\n"
+next s = after s "\n"
+nonempty s = != s ""
+argcount s = if == word s "" 0 + 1 argcount skip s
+has_eq s = if == word s "" false if == word s "=" true has_eq skip s
+lhs s = trim before s "="
+rhs s = trim after s "="
+name_of s = word lhs s
+params_of s = skip lhs s
+sig_line s = concat name_of s concat ":" concat str argcount params_of s "\n"
+sigs s = if == s "" "" concat sig_for line s sigs next s
+sig_for s = if has_eq s sig_or_empty s ""
+sig_or_empty s = if > argcount params_of s 0 sig_line s ""
+
+# Arity registry as newline-separated name:arity pairs.
+base _ = "+:2\n-:2\n*:2\n/:2\n%:2\n==:2\n!=:2\n<:2\n<=:2\n>:2\n>=:2\nand:2\nor:2\nmin:2\nmax:2\npow:2\nconcat:2\ncontains:2\nstarts:2\nends:2\nbefore:2\nafter:2\nif:3\nreplace:3\nclamp:3\nnot:1\nneg:1\nabs:1\nprint:1\nlen:1\nupper:1\nlower:1\ntrim:1\nstr:1\nword:1\nskip:1\nnum:1\nisnum:1\ninput:1\n"
+lookup tab n = if == tab "" -1 if == before line tab ":" n num after line tab ":" lookup next tab n
+arity tab n = if >= lookup tab n 0 lookup tab n lookup base _ n
+
+# Only ASCII names are supported by the v0.1-compatible bootstrap subset.
+id n = concat "ain_" n
+sym n = if == n "+" "v_add" if == n "-" "v_sub" if == n "*" "v_mul" if == n "/" "v_div" if == n "%" "v_mod" if == n "==" "v_eq" if == n "!=" "v_ne" if == n "<" "v_lt" if == n "<=" "v_le" if == n ">" "v_gt" if == n ">=" "v_ge" if == n "and" "v_and" if == n "or" "v_or" if == n "if" "v_if" if == n "str" "v_str_value" concat "v_" n
+callee tab n = if >= lookup tab n 0 id n sym n
+
+# Return a pair: generated C expression, then unconsumed source.
+expr source tab = emit_token word source skip source tab
+emit_token t rest tab = if == t "_" pack "v_unit()" rest if == t "true" pack "v_bool(1)" rest if == t "false" pack "v_bool(0)" rest if starts t "\"" pack concat "v_str(" concat t ")" rest if isnum t pack concat "v_int(" concat t ")" rest if >= arity tab t 0 emit_call t rest tab pack id t rest
+emit_call t rest tab = finish_call t parse_args rest arity tab t tab tab
+finish_call t parts tab = pack concat callee tab t concat "(" concat first parts ")" second parts
+parse_args rest n tab = if == n 0 pack "" rest prepend_arg expr rest tab - n 1 tab
+prepend_arg p n tab = append_args first p parse_args second p n tab
+append_args a tailargs = pack concat a concat if == first tailargs "" "" "," first tailargs second tailargs
+code s tab = first expr s tab
+
+# Emit function forward declarations, implementations, and a main function.
+args s i = if == word s "" "" concat arg_decl word s i arg_tail skip s + i 1
+arg_decl n i = concat "V " if == n "_" concat "_unit_" str i id n
+arg_tail s i = if == word s "" "" concat "," args s i
+header s = concat "V " concat id name_of s concat "(" concat args params_of s 0 ");\n"
+define s tab = concat "V " concat id name_of s concat "(" concat args params_of s 0 concat "){return " concat code rhs s tab ";}\n"
+value s tab = concat "V " concat id name_of s concat "=" concat code rhs s tab ";\n"
+statement s tab = concat "(void)" concat code s tab ";\n"
+fn_line s = if has_eq s > argcount params_of s 0 false
+val_line s = if has_eq s == argcount params_of s 0 false
+prototypes src = if == src "" "" concat if fn_line line src header line src "" prototypes next src
+functions src tab = if == src "" "" concat if fn_line line src define line src tab "" functions next src tab
+items src tab = if == src "" "" concat item_line line src tab items next src tab
+item_line s tab = if == word s "" "" if fn_line s "" if val_line s value s tab statement s tab
+program src = emit_all src sigs src
+emit_all src tab = concat "#include \"ain_runtime.h\"\n\n" concat prototypes src concat "\n" concat functions src tab concat "int main(void){\n" concat items src tab "return 0;\n}\n"
+
+print program input _

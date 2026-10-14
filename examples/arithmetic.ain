@@ -1,0 +1,5 @@
+# One expression per line, prefix function calls
+add a b = + a b
+square x = * x x
+result = add square 3 square 4
+print result
