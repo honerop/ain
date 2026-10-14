@@ -57,10 +57,10 @@ fn lex(line: &str, lineno: usize) -> Result<Vec<Token>, CompileError> {
                 if c.is_whitespace() || c == '#' || c == '"' { break; }
                 word.push(c); chars.next();
             }
-            if !word.is_empty() { result.push(Token::Word(word)); }
             if chars.peek() == Some(&'"') && !word.is_empty() {
                 return Err(err(lineno, "put a space before string literals"));
             }
+            if !word.is_empty() { result.push(Token::Word(word)); }
         }
     }
     Ok(result)
