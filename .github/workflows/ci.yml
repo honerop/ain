@@ -8,6 +8,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: LLVM native toolchain
+        run: clang --version
       - name: Rust compiler tests
         run: cargo test
       - name: Rust-first three-stage bootstrap

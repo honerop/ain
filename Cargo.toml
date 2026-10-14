@@ -1,6 +1,6 @@
 [package]
 name = "ain-compiler"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "A tiny statically typed AI-native language transpiler"
 license = "MIT"

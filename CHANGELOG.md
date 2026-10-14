@@ -13,3 +13,12 @@
 
 - Initial Rust lexer, prefix parser, primitive type inference, Rust backend, CLI, and Nix shell.
 - Supported one-line definitions, unit argument, fixed-arity builtins and example programs.
+
+## 0.3.0 — experimental AIR / LLVM backend (2026-10-14)
+
+- Added a typed AIN Intermediate Representation (AIR) with concrete primitive values and safe constant folding.
+- Added direct LLVM IR generation for i64/bool/unit expressions, functions, recursion, lazy conditionals, comparisons, checked arithmetic and printing, without C source generation or the tagged C runtime.
+- Added `ainc air`, `ainc llvm`, `ainc build-llvm` and `ainc run-llvm` to inspect or execute the LLVM path via Clang `-O3`.
+- Added LLVM native executable tests and explicit rejection of unsupported operations such as strings rather than generating incorrect code.
+- Retained the Rust transpiler and existing C self-hosting bootstrap for compatibility. AIR is an experimental numeric subset, **not** a complete replacement or self-hosted yet.
+- Compiler infrastructure uses Clang for LLVM IR code generation; does not yet implement PGO, module LTO, vectors, collections, advanced alias analysis or a self-hosted AIR backend.

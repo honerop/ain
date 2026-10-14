@@ -430,7 +430,7 @@ fn ain_input(_: ()) -> String {
     out
 }
 
-/// Output of a successful compilation. \`rust\` can be passed directly to rustc.
+/// Output of a successful compilation. `rust` can be passed directly to rustc.
 #[derive(Debug, Clone)]
 pub struct Compilation { pub rust: String, pub definitions: usize }
 
@@ -465,3 +465,12 @@ mod tests {
     #[test] fn string_builtins() { assert!(compile("x = concat upper \"hi\" \"!\"\nprint x").is_ok()); }
     #[test] fn zero_arg_value() { assert!(compile("x = 10\nprint x").is_ok()); }
 }
+
+mod air;
+
+/// Dump the typed AIR expression IR (debugging and optimization inspection).
+pub fn dump_air(source: &str) -> Result<String, CompileError> { air::dump(source) }
+
+/// Emit optimized-backend-ready LLVM IR for the numeric/boolean AIN subset.
+/// LLVM codegen uses unboxed types and rejects strings until AIR supports them.
+pub fn compile_llvm(source: &str) -> Result<String, CompileError> { air::llvm(source) }

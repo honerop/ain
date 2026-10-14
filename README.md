@@ -103,3 +103,22 @@ tests/                        Rust compiler tests
 ## Next milestones
 
 A self-hosted type checker, unified optimized IR/backends, improved lexical/token parsing, stable module system, diagnostics, and integrated performance/token-count benchmarks. MIT license.
+
+## Experimental AIR and LLVM backend (0.3.0)
+
+AIN now has an initial **AIR (AIN Intermediate Representation)** typed IR and a direct LLVM backend for numeric/boolean programs. It lowers AIN expressions to concrete SSA values (`i64`, `i1`, `i8`) and emits LLVM IR, **not C source**. Checked arithmetic invokes LLVM overflow intrinsics and traps on overflow rather than silently changing arithmetic semantics.
+
+```bash
+nix develop
+cargo test
+cargo run -- air examples/recursive.ain
+cargo run -- llvm examples/recursive.ain -o build/recursive.ll
+cargo run -- run-llvm examples/recursive.ain
+cargo run -- build-llvm examples/arithmetic.ain -o build/arithmetic
+```
+
+AIR performs small safe folds before LLVM optimization. Clang `-O3` performs the machine-code optimization and linking. The compiler currently emits LLVM IR text directly, rather than calling the LLVM APIs through a binding.
+
+**Supported in this backend:** fixed-arity user functions, recursion, integer/boolean/unit values, top-level values, checked `+ - * / %`, `neg`, `abs`, `pow`, `min`, `max`, `clamp`, comparisons, lazy `if`, `and`, `or`, and `print` of primitive values. The self-hosted `bootstrap/compiler.ain` and string/file operations still require the original compiler and C bootstrap path. A compiler error, not a fallback to C, is emitted for unsupported LLVM features.
+
+The LLVM pipeline is an **experimental preview**. It is not self-hosted and not evidence of faster performance than optimized Rust or C. Benchmark runtime and compile time with matched semantics and equivalent optimization settings before claiming performance improvements.
