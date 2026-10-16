@@ -1,0 +1,3 @@
+# Native GUI logic entirely in Ain
+layout = "header\tAIN GUI demo\nlog\tNative window from Ain\nentry\tmessage\tType text\nbutton\tsend\tSend\nbutton\tquit\tQuit\nhint\ti to insert, Esc for normal mode\nvim\t1\n"
+print gui "AIN window" layout
