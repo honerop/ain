@@ -1,4 +1,4 @@
-use ain_compiler::{compile, compile_llvm, dump_air};
+use ain_compiler::{compile, compile_llvm, dump_air, format_source};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -22,7 +22,7 @@ fn json_string(s: &str) -> String {
     escaped
 }
 fn usage() {
-    eprintln!("AIN compiler 0.3.0\nUsage:\n  ainc check <file.ain>\n  ainc check-json <file.ain>\n  ainc air <file.ain> [-o file.air]\n  ainc llvm <file.ain> [-o file.ll]\n  ainc build-llvm <file.ain> [-o executable]\n  ainc run-llvm <file.ain>\n  ainc transpile <file.ain> [-o file.rs]\n  ainc build <file.ain> [-o executable]\n  ainc run <file.ain>\n  ainc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
+    eprintln!("AIN compiler 0.3.0\nUsage:\n  ainc check <file.ain>\n  ainc fmt <file.ain> [-o output.ain]\n  ainc fmt-check <file.ain>\n  ainc check-json <file.ain>\n  ainc air <file.ain> [-o file.air]\n  ainc llvm <file.ain> [-o file.ll]\n  ainc build-llvm <file.ain> [-o executable]\n  ainc run-llvm <file.ain>\n  ainc transpile <file.ain> [-o file.rs]\n  ainc build <file.ain> [-o executable]\n  ainc run <file.ain>\n  ainc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
 }
 fn rustc(rust: &Path, binary: &Path) -> Result<(), String> {
     let mut cmd = Command::new("rustc");
@@ -68,11 +68,25 @@ fn run() -> Result<(), String> {
     let output = if args.len() == 4 && args[2] == "-o" { Some(PathBuf::from(&args[3])) }
         else if args.len() == 2 { None }
         else { usage(); return Err("invalid arguments".into()); };
-    if !matches!(action.as_str(), "check"|"check-json"|"air"|"llvm"|"build-llvm"|"run-llvm"|"transpile"|"build"|"run") {
+    if !matches!(action.as_str(), "check"|"fmt"|"fmt-check"|"check-json"|"air"|"llvm"|"build-llvm"|"run-llvm"|"transpile"|"build"|"run") {
         usage(); return Err(format!("unknown command '{action}'"));
     }
-    if output.is_some() && matches!(action.as_str(), "check"|"check-json"|"run"|"run-llvm") { return Err(format!("{action} doesn't accept -o")); }
+    if output.is_some() && matches!(action.as_str(), "check"|"fmt-check"|"check-json"|"run"|"run-llvm") { return Err(format!("{action} doesn't accept -o")); }
     let source = fs::read_to_string(source_file).map_err(|e| format!("{}: {e}", source_file.display()))?;
+    if action == "fmt" {
+        let formatted = format_source(&source).map_err(|e| e.to_string())?;
+        if let Some(path) = output {
+            fs::write(&path, formatted).map_err(|e| e.to_string())?;
+            println!("wrote {}", path.display());
+        } else { print!("{formatted}"); }
+        return Ok(());
+    }
+    if action == "fmt-check" {
+        let formatted = format_source(&source).map_err(|e| e.to_string())?;
+        if source != formatted { return Err(format!("{} is not canonically formatted", source_file.display())); }
+        println!("OK: {}", source_file.display());
+        return Ok(());
+    }
     if action == "check-json" {
         match compile(&source) {
             Ok(c) => {

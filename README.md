@@ -142,6 +142,13 @@ TOML configuration files, with recoverable errors, sorted keys and nested
 tables. It intentionally rejects unsupported TOML 1.0 constructs such as
 array-of-tables and multiline strings. See the [TOML guide](docs/toml.md).
 
+## Deterministic formatting for AI-generated source
+
+`ainc fmt FILE.ain` emits canonical spacing without changing program
+semantics; `ainc fmt-check FILE.ain` fails in CI when source is not
+canonically formatted. Comments, blank lines, literal string contents,
+and definition order remain intact. See the [formatter guide](docs/formatter.md).
+
 ## A first look
 
 ```text
