@@ -101,6 +101,14 @@ response headers and text. Transport errors are returned as recoverable
 
 The API remains synchronous; true streaming and socket servers are future work.
 
+## Statically typed maps
+
+In addition to lists and dynamic JSON records, the native backend supports
+inferred `Map<String, T>` values with predictable sorted keys, persistent-style
+updates, lookup and iteration-ready key/value collections. Invalid key types,
+mixed values, and mismatched fallback types fail at compile time. See the
+[typed maps guide](docs/typed-maps.md).
+
 ## A first look
 
 ```text
