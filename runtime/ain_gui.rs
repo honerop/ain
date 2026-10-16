@@ -39,6 +39,10 @@ unsafe extern "C" {
     fn gtk_entry_set_placeholder_text(entry: *mut c_void, text: *const c_char);
     fn gtk_editable_get_text(entry: *mut c_void) -> *const c_char;
     fn gtk_editable_set_text(entry: *mut c_void, text: *const c_char);
+    fn gtk_editable_get_position(entry: *mut c_void) -> i32;
+    fn gtk_editable_set_position(entry: *mut c_void, position: i32);
+    fn gtk_editable_insert_text(entry: *mut c_void, text: *const c_char, length: i32, position: *mut i32);
+    fn gdk_keyval_to_unicode(key: u32) -> u32;
     fn gtk_button_new_with_label(text: *const c_char) -> *mut c_void;
     fn gtk_progress_bar_new() -> *mut c_void;
     fn gtk_progress_bar_set_fraction(bar: *mut c_void, fraction: f64);
@@ -171,7 +175,26 @@ unsafe extern "C" fn ain_gui_key(_controller: *mut c_void, key: u32,
     }
     // In insert mode the GTK editor gets *every* printable character,
     // including i, j, k, g, G and ':'. No Vim shortcut runs here.
-    if gui.insert_mode { return 0; }
+    if gui.insert_mode {
+        if !gui.entry.is_null() && gtk_widget_has_focus(gui.entry) == 0 {
+            // A window can receive early keystrokes before GTK finishes giving
+            // its entry focus. Do not lose the first typed character.
+            gtk_widget_grab_focus(gui.entry);
+            if modifiers & (4 | 8 | (1 << 26)) == 0 {
+                let codepoint = gdk_keyval_to_unicode(key);
+                if let Some(ch) = char::from_u32(codepoint) {
+                    if !ch.is_control() {
+                        let value = ain_gui_c(&ch.to_string());
+                        let mut pos = gtk_editable_get_position(gui.entry);
+                        gtk_editable_insert_text(gui.entry, value.as_ptr(), -1, &mut pos);
+                        gtk_editable_set_position(gui.entry, pos);
+                        return 1;
+                    }
+                }
+            }
+        }
+        return 0;
+    }
     // Do not steal Ctrl/Alt/Super shortcuts from the window or desktop.
     if modifiers & (4 | 8 | (1 << 26)) != 0 { return 0; }
     match key {
