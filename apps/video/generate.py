@@ -79,7 +79,7 @@ def validate(spec: object) -> tuple[int, int]:
             if not isinstance(shape, dict):
                 raise ValueError(f"{label} must be an object")
             kind = shape.get("kind")
-            if kind not in GEOMETRY:
+            if not isinstance(kind, str) or kind not in GEOMETRY:
                 raise ValueError(f"{label}.kind must be rect, circle, line, text or image")
             for field in GEOMETRY[kind]:
                 if field == "value":
@@ -94,6 +94,13 @@ def validate(spec: object) -> tuple[int, int]:
                     raise ValueError(f"{label}.path must be a local image filename")
                 if Path(path).suffix.lower() not in (".png", ".jpg", ".jpeg"):
                     raise ValueError(f"{label}.path must end in .png, .jpg or .jpeg")
+            if kind == "image":
+                for field in ("width", "height"):
+                    if shape[field] <= 0:
+                        raise ValueError(f"{label}.{field} must be positive")
+                    for phase in ("from", "to"):
+                        if phase in shape and field in shape[phase] and shape[phase][field] <= 0:
+                            raise ValueError(f"{label}.{phase}.{field} must be positive")
             for field in ANIMATED & shape.keys():
                 integer(shape[field], f"{label}.{field}", -32768, 32768)
             for key in ("from", "to"):
