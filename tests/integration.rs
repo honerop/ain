@@ -253,3 +253,54 @@ fn effect_builtin_type_errors() {
     assert!(compile("fswrite \"file\" 7").is_err());
     assert!(compile("print httpget true").is_err());
 }
+
+
+#[test]
+fn sqlite_parameterized_queries_and_persistence() {
+    let path = std::env::temp_dir().join(format!(
+        "ain-sqlite-{}-{}.db", std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+    ));
+    let p = path.to_string_lossy();
+    let source = format!(r#"path = {p:?}
+empty = array _
+created = sqlexec path "CREATE TABLE examples (name TEXT, score INTEGER)" empty
+print asbool field created "ok"
+params = push push array _ boxstr "A'); DROP TABLE examples; --" boxint 17
+added = sqlexec path "INSERT INTO examples(name, score) VALUES(?1, ?2)" params
+print asbool field added "ok"
+results = sqlquery path "SELECT name, score FROM examples WHERE score = ?" push array _ boxint 17
+print encode field results "value"
+print asbool field results "ok"
+retry = sqlquery path "SELECT name FROM examples" empty
+print size field retry "value"
+error = sqlquery path "SELECT missing FROM examples" empty
+print asbool field error "ok"
+print hasfield error "error"
+"#);
+    let output = execute(&source);
+    assert_eq!(output,
+        "true\ntrue\n[{\"name\":\"A'); DROP TABLE examples; --\",\"score\":17}]\ntrue\n1\nfalse\ntrue\n");
+    let _ = fs::remove_file(path);
+}
+#[test]
+fn sqlite_parameter_count_and_multiple_statement_rejection() {
+    let path = std::env::temp_dir().join(format!(
+        "ain-sqlite-reject-{}.db", std::process::id()
+    ));
+    let p = path.to_string_lossy();
+    let source = format!(r#"db = {p:?}
+err1 = sqlexec db "SELECT ?" array _
+err2 = sqlexec db "SELECT 1; SELECT 2" array _
+print asbool field err1 "ok"
+print asbool field err2 "ok"
+"#);
+    assert_eq!(execute(&source), "false\nfalse\n");
+    let _ = fs::remove_file(path);
+}
+#[test]
+fn sqlite_type_checks() {
+    assert!(compile("print sqlquery 4 \"select 1\" array _").is_err());
+    assert!(compile("print sqlexec \"a.db\" \"select 1\" true").is_err());
+    assert!(compile("print sqlquery \"a.db\" \"select 1\" array _").is_ok());
+}
