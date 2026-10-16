@@ -294,7 +294,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_label_set_xalign(role_label, 0.0);
                 gtk_widget_add_css_class(role_label, ain_gui_c("ain-role").as_ptr());
                 gtk_box_append(bubble, role_label);
-                let body = gtk_label_new(ain_gui_c(b).as_ptr());
+                let body = gtk_label_new(ain_gui_c(&b.replace("\\n", "\n")).as_ptr());
                 gtk_label_set_xalign(body, 0.0);
                 gtk_label_set_wrap(body, 1);
                 gtk_label_set_selectable(body, 1);
