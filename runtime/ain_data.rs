@@ -280,3 +280,32 @@ fn ain_data_fold<F: Fn(AinData, AinData) -> AinData>(
     match list { AinData::List(items) => items.into_iter().fold(init, f),
         _ => panic!("fold requires list") }
 }
+
+type AinCell = std::rc::Rc<std::cell::RefCell<AinData>>;
+impl AinText for AinCell {
+    fn ain_text(&self) -> String { self.borrow().json() }
+}
+fn ain_data_state(value: AinData) -> AinCell {
+    std::rc::Rc::new(std::cell::RefCell::new(value))
+}
+fn ain_data_readstate(cell: AinCell) -> AinData {
+    cell.borrow().clone()
+}
+fn ain_data_setstate(cell: AinCell, value: AinData) {
+    *cell.borrow_mut() = value;
+}
+fn ain_data_swapstate(cell: AinCell, value: AinData) -> AinData {
+    std::mem::replace(&mut *cell.borrow_mut(), value)
+}
+fn ain_data_iterate<F: Fn(AinData) -> AinData>(
+        n: i64, mut value: AinData, f: F) -> AinData {
+    assert!((0..=1_000_000).contains(&n), "iterate must be between 0 and 1,000,000");
+    for _ in 0..n { value = f(value); }
+    value
+}
+fn ain_data_each<F: Fn(AinData)>(list: AinData, f: F) {
+    match list {
+        AinData::List(items) => for item in items { f(item); },
+        _ => panic!("each requires list")
+    }
+}
