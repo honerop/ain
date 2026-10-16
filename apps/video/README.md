@@ -1,127 +1,123 @@
-# Ain Video: JSON animation to MP4
+# Ain-only JSON video generator
 
-A small, usable video pipeline built **with Ain**. It is aimed at mathematical
-explainers, animated technical diagrams and scripted faceless videos.
+An experimental video generator written entirely in Ain (apps/video/render.ain).
+It reads JSON scenes and writes a real **YUV4MPEG2 (.y4m) raw video** with
+Ain's existing JSON, math, iteration, string and file-writing builtins.
 
-The timeline engine, scene selection, easing and keyframe interpolation are
-written in [render.ain](render.ain). Ain's native `svgwrite` exporter creates
-one vector frame at a time. A narrow Python standard-library CLI validates the
-JSON, invokes Ain, rasterizes SVG with `rsvg-convert`, and muxes MP4/audio with
-FFmpeg. There is no dependency on MoviePy, Manim, a browser or Python graphics
-packages.
+**No Python, FFmpeg, rasterizer, video library, subprocess, or changes to Ain's
+compiler/runtime are needed.** Ain's existing native compiler is still used
+to run Ain source.
 
-It is intentionally an early subset of those tools, not a replacement for them.
+Y4M is a standard raw-video format supported by video tools/players, but is
+**not MP4**. Files are uncompressed and unsuitable for direct YouTube upload.
+A high-quality compressed export cannot currently be produced through Ain's
+existing text-only file API without a codec and binary-write support.
 
-## Use
+## Run
 
-From the **repository root** on NixOS:
+From the repository root:
 
-```sh
+~~~sh
 nix develop
-# Nix shell must include ffmpeg and librsvg as well as rustc/cargo.
-python3 apps/video/generate.py apps/video/examples/explainer.json explainer.mp4
-```
+AIN_VIDEO_SPEC=apps/video/examples/explainer.json \
+AIN_VIDEO_OUTPUT=explainer.y4m \
+cargo run -- run apps/video/render.ain
+~~~
 
-Or on other Linux systems, install `cargo`, `rustc`, `ffmpeg` (with
-`libx264`) and `rsvg-convert` from librsvg, then use the same command.
+The resulting explainer.y4m contains actual timed video frames. Many video
+players support Y4M, though not all GUI players open it by default.
 
-With voiceover and music:
+No external video encoder is called or required.
 
-```sh
-python3 apps/video/generate.py movie.json movie.mp4 \
-  --voiceover narration.wav --music music.mp3
-```
+## JSON format
 
-The JSON may also contain `"voiceover": "narration.wav"` and
-`"music": "music.mp3"`. Those files are resolved relative to the JSON.
-Music is looped to video length and mixed at 18% amplitude below narration.
-The same low gain is applied to music-only projects. Audio is trimmed/padded
-to the exact video duration.
-
-Use `--keep-frames` to copy all SVG and PNG frames next to the MP4 for
-debugging. Normally temporary files are removed after export.
-
-## Example
-
-```json
+~~~json
 {
-  "width": 640,
-  "height": 360,
-  "fps": 24,
+  "width": 96,
+  "height": 64,
+  "fps": 8,
   "scenes": [
     {
-      "duration": 2,
-      "background": "#101825",
+      "frames": 8,
+      "background": "black",
       "elements": [
         {
-          "kind": "text", "value": "Input becomes output",
-          "x": 320, "y": 95, "font_size": 32,
-          "anchor": "middle", "fill": "white"
+          "kind": "text",
+          "value": "AIN VIDEO",
+          "x": 8, "y": 7, "scale": 2, "fill": "white",
+          "from": {"x": -20}, "ease": "smooth"
         },
         {
-          "kind": "circle", "cx": 450, "cy": 210, "r": 28,
-          "fill": "#00d4ee", "ease": "smooth",
-          "from": {"cx": 80}
+          "kind": "rect",
+          "x": 9, "y": 42, "width": 76, "height": 3,
+          "fill": "cyan", "from": {"width": 0}
         }
       ]
     }
   ]
 }
-```
+~~~
 
-Coordinates are pixels from the top-left. Text `y` is its baseline. Scene
-length is either integer `duration` in seconds or integer `frames`;
-`frames` takes precedence. Scenes are concatenated with hard cuts.
+Scenes run sequentially. Each scene has integer frames, or integer
+duration in seconds if frames is absent. Object from/to keyframes animate
+geometry over the full scene; ease is linear or smooth.
 
-Element kinds:
+Supported types:
 
-| Kind | Required | Optional |
-|---|---|---|
-| `rect` | `x, y, width, height` | `fill` |
-| `circle` | `cx, cy, r` | `fill` |
-| `line` | `x1, y1, x2, y2` | `stroke, stroke_width` |
-| `text` | `x, y, value` | `fill, font_size, anchor` |
-| `image` | `x, y, width, height, path` | image path to local PNG/JPEG |
+| kind | properties |
+|---|---|
+| rect | x, y, width, height, fill |
+| circle | cx, cy, r, fill |
+| text | x, y, value, scale (1..12), fill |
 
-All shape kinds, including images, can set `from` and/or `to` as geometry overrides. The
-Ain renderer interpolates each numeric property over the entire scene:
+Text is rasterized using a small embedded 3x5 uppercase ASCII font, not a
+system font. Supported characters are letters A-Z, numbers 0-9, spaces
+and a handful of punctuation marks.
 
-- `from` supplies the starting coordinates/sizes, defaulting to base fields.
-- `to` supplies the ending coordinates/sizes, defaulting to base fields.
-- `ease` may be `linear` (default) or `smooth` (integer smoothstep).
+The default background is black. The fill and background keys map
+common color names to different **luminance values**, not full RGB. This
+first implementation is limited-color, largely grayscale video.
 
-Interpolation is frame-accurate and deterministic, with the first frame at
-`from` and last frame at `to`. Values are integers. Geometry is animated
-without tweening text or fill colors. The SVG backend safely escapes text.
+## Why Y4M?
 
-## Limits
+Ain's current fswrite(path, text) writes UTF-8, not arbitrary bytes.
+Y4M has an ASCII header and raw YUV pixels. By choosing only single-byte
+ASCII values (16..126) as pixel samples, this program generates a legitimate
+Y4M stream without changing Ain or invoking another program.
 
-- 2..8192 px resolution per axis, even dimensions; 1..60 FPS.
-- Maximum 18,000 frames, 1,000 scenes, and 999 objects per scene.
-- Uses the **Rust-native Ain backend**, not the LLVM or C bootstrap.
-- No camera moves, LaTeX typesetting, path morphing, gradients, masks,
-  text layout or real-time preview yet.
-- Local PNG/JPEG images are embedded in SVG frames as data URIs (up to 1 MB per
-  image). This increases memory/disk use considerably on longer videos.
-- PNG rasterization for every frame is simple but not especially fast.
-- Ain compilation is performed on each invocation; suitable for CLI jobs,
-  not interactive editing.
-- Input is local and trusted. Ain's capability checks are not a sandbox.
+We deliberately do **not** pretend it produces H.264, H.265 or MP4.
+Those require substantially more work and a general binary output API.
 
-## Test
+The encoder writes YUV 4:2:0 planes. Luminance is rasterized in Ain, while
+chroma is held at ASCII byte value 126. This is a technical first
+step, not a faithful full-color rendering pipeline.
 
-```sh
-python3 -m unittest discover -s apps/video/tests -v
+## Current limits
+
+- Even width and height, automatically clamped to 16..320 by 16..180 pixels.
+- 1..24 FPS, at most 240 frames (silently shortened if JSON requests more).
+- First version has no sound, clip import, native image assets, lines,
+  LaTeX, antialiasing, or general scene transforms.
+- Fully in-memory rendering through Ain strings, so long or large videos
+  are slower and memory-intensive.
+- Only valid, trusted JSON. The initial prototype has minimal input checks.
+
+This makes the generator suitable for short raw-video proof-of-concept
+animations, not yet finished 3Blue1Brown-length productions.
+
+## Tests
+
+~~~sh
 cargo test --test video_generator
-```
+~~~
 
-The Rust test compiles the Ain renderer to catch syntax and type issues.
-The Python tests check input validation and FFmpeg command setup. An actual
-video export additionally needs librsvg and FFmpeg installed locally.
+This test compiles Ain source and verifies the output Y4M header, frame sizes,
+animated pixels, scene transitions and chroma planes. It does not require any
+video tools.
 
-## Where to extend
+## Later improvements
 
-For a more Manim-like editor, next add a richer scene graph (paths, transforms,
-camera, reusable groups), object-level timing, math text using LaTeX/SVG,
-video clips and GPU or streamed rasterization. Keep scene timing in Ain;
-keep hardware video encoding in a specialized native process.
+Add in-memory byte buffers and a binary file writer **only if necessary**,
+keeping the video API in the Ain application. That would enable full-color Y4M,
+uncompressed AVI or eventually a codec implemented in Ain without Python or
+FFmpeg. Until then, keep this app independent of language changes.
