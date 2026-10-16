@@ -98,6 +98,29 @@ fn ain_svgwrite(path: String, scene: AinData) -> AinData {
                         r#"<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{stroke}" stroke-width="{stroke_width}" stroke-linecap="round"/>"#
                     ));
                 }
+                "image" => {
+                    let x = ain_graph_number(values, "x")?;
+                    let y = ain_graph_number(values, "y")?;
+                    let width = ain_graph_number(values, "width")?;
+                    let height = ain_graph_number(values, "height")?;
+                    if width <= 0 || height <= 0 {
+                        return Err("SVG image dimensions must be positive".into());
+                    }
+                    let Some(AinData::Text(uri)) = values.get("data") else {
+                        return Err("SVG image requires an embedded data URI".into());
+                    };
+                    let encoded = uri.strip_prefix("data:image/png;base64,")
+                        .or_else(|| uri.strip_prefix("data:image/jpeg;base64,"))
+                        .ok_or_else(|| "SVG images must embed PNG or JPEG".to_string())?;
+                    if encoded.is_empty() || encoded.len() > 1_400_000
+                        || !encoded.bytes().all(|c| c.is_ascii_alphanumeric()
+                            || c == b'+' || c == b'/' || c == b'=') {
+                        return Err("Invalid or oversized SVG image data".into());
+                    }
+                    output.push_str(&format!(
+                        r#"<image x="{x}" y="{y}" width="{width}" height="{height}" preserveAspectRatio="xMidYMid meet" href="{uri}"/>"#
+                    ));
+                }
                 "text" => {
                     let x = ain_graph_number(values, "x")?;
                     let y = ain_graph_number(values, "y")?;
