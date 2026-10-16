@@ -90,7 +90,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
         "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get" => 2,
-        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold" => 3,
+        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest" => 3,
         "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread" => 1,
         _ => return None,
     })
@@ -325,6 +325,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "httprequest" => { types.unify(actual[0].clone(), Ty::Str, line)?; types.unify(actual[1].clone(), Ty::Str, line)?; types.unify(actual[2].clone(), Ty::Data, line)?; Ty::Data },
                 "option_some" => Ty::Option(Box::new(actual[0].clone())),
                 "option_none" => { types.unify(actual[0].clone(), Ty::Unit, line)?; Ty::Option(Box::new(types.fresh())) },
                 "option_has" => { let elem=types.fresh(); types.unify(actual[0].clone(), Ty::Option(Box::new(elem)), line)?; Ty::Bool },
@@ -485,6 +486,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "httprequest" => format!("ain_http_request_data({}, {}, {})", a[0], a[1], a[2]),
                 "option_some" => format!("Some({})", a[0]),
                 "option_none" => "None".into(),
                 "option_has" => format!("({}).is_some()", a[0]),
@@ -666,6 +668,7 @@ fn ain_input(_: ()) -> String {
     if out.contains("ain_list_map(") || out.contains("ain_list_filter(") || out.contains("ain_list_fold(") {
         out.push_str(include_str!("../runtime/ain_typed_list.rs"));
     }
+    if out.contains("ain_http_request_data(") { out.push_str(include_str!("../runtime/ain_http_client.rs")); }
     let uses_gui = out.contains("ain_gui(");
     let uses_chat = out.contains("ain_chat(");
     let uses_browser = out.contains("ain_browser(");
