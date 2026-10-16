@@ -145,7 +145,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
         "ffi2" => 4,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"videowrite"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend" => 2,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend" => 2,
         "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
         "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr" => 1,
         _ => return None,
@@ -455,7 +455,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                     types.unify(actual[1].clone(), Ty::Str, line)?; Ty::Data },
                 "httpserveonce" => { types.unify(actual[0].clone(), Ty::Int, line)?;
                     types.unify(actual[1].clone(), Ty::Str, line)?; Ty::Data },
-                "videowrite"|"wavwrite"|"svgwrite"|"gltfwrite" => {
+                "wavwrite"|"svgwrite"|"gltfwrite" => {
                     types.unify(actual[0].clone(), Ty::Str, line)?;
                     types.unify(actual[1].clone(), Ty::Data, line)?;
                     Ty::Data
@@ -668,7 +668,6 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "httpserveonce" => format!("ain_http_serveonce({}, {})", a[0], a[1]),
                 "wavwrite" => format!("ain_wavwrite({}, {})", a[0], a[1]),
                 "svgwrite" => format!("ain_svgwrite({}, {})", a[0], a[1]),
-                "videowrite" => format!("ain_videowrite({}, {})", a[0], a[1]),
                 "gltfwrite" => format!("ain_gltfwrite({}, {})", a[0], a[1]),
                 "mapone" => format!("ain_map_one({}, {})", a[0], a[1]),
                 "mapset" => format!("ain_map_set({}, {}, {})", a[0], a[1], a[2]),
@@ -846,13 +845,13 @@ fn ain_input(_: ()) -> String {
         }
     }
     out.push_str("}\n");
-    let uses_data = out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
+    let uses_data = out.contains("ain_chat(") || out.contains("ain_browser(") || out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
     if uses_data { out.push_str(include_str!("../runtime/ain_data.rs")); }
     let uses_effects = out.contains("ain_fs_list(") || out.contains("ain_fs_mkdir(")
         || out.contains("ain_fs_remove(") || out.contains("ain_process_run(")
         || out.contains("ain_working_directory(") || out.contains("ain_ffi0(") || out.contains("ain_ffi1(") || out.contains("ain_ffi2(")
         || out.contains("ain_tcp_request(") || out.contains("ain_http_serveonce(") || out.contains("ain_wavwrite(") || out.contains("ain_svgwrite(")
-        || out.contains("ain_gltfwrite(") || out.contains("ain_videowrite(") || out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") || out.contains("ain_check_permission(") || out.contains("ain_fs_")
+        || out.contains("ain_gltfwrite(") || out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") || out.contains("ain_check_permission(") || out.contains("ain_fs_")
         || out.contains("ain_env_get(") || out.contains("ain_http_");
     if uses_effects { out.push_str(include_str!("../runtime/ain_effects.rs")); }
     let uses_tasks = out.contains("ain_task_");
@@ -875,7 +874,6 @@ fn ain_input(_: ()) -> String {
         out.push_str(include_str!("../runtime/ain_typed_map.rs"));
     }
     if out.contains("ain_wavwrite(") { out.push_str(include_str!("../runtime/ain_audio.rs")); }
-    if out.contains("ain_videowrite(") { out.push_str(include_str!("../runtime/ain_video.rs")); }
     if out.contains("ain_svgwrite(") || out.contains("ain_gltfwrite(") {
         out.push_str(include_str!("../runtime/ain_graphics.rs"));
     }
