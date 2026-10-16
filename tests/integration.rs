@@ -273,7 +273,7 @@ results = sqlquery path "SELECT name, score FROM examples WHERE score = ?" push 
 print encode field results "value"
 print asbool field results "ok"
 retry = sqlquery path "SELECT name FROM examples" empty
-print asint size field retry "value"
+print size field retry "value"
 error = sqlquery path "SELECT missing FROM examples" empty
 print asbool field error "ok"
 print hasfield error "error"

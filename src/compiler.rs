@@ -535,7 +535,7 @@ fn ain_input(_: ()) -> String {
     out.push_str("}\n");
     let uses_data = out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
     if uses_data { out.push_str(include_str!("../runtime/ain_data.rs")); }
-    let uses_effects = out.contains("ain_check_permission(") || out.contains("ain_fs_")
+    let uses_effects = out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") || out.contains("ain_check_permission(") || out.contains("ain_fs_")
         || out.contains("ain_env_get(") || out.contains("ain_http_");
     if uses_effects { out.push_str(include_str!("../runtime/ain_effects.rs")); }
     let uses_tasks = out.contains("ain_task_");
