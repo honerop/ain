@@ -145,9 +145,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
         "ffi2" => 4,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun" => 2,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend" => 2,
         "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"fslist"|"fsmkdir"|"fsremove"|"workingdir" => 1,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr" => 1,
         _ => return None,
     })
 }
@@ -390,6 +390,35 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "split" => { for arg in actual { types.unify(arg,Ty::Str,line)?; } Ty::List(Box::new(Ty::Str)) },
+                "lines" => { types.unify(actual[0].clone(),Ty::Str,line)?; Ty::List(Box::new(Ty::Str)) },
+                "strjoin" => {
+                    types.unify(actual[0].clone(),Ty::List(Box::new(Ty::Str)),line)?;
+                    types.unify(actual[1].clone(),Ty::Str,line)?;
+                    Ty::Str
+                },
+                "listreverse" => { let elem=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(elem)),line)?;
+                    actual[0].clone()
+                },
+                "listtake"|"listdrop" => { let elem=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(elem)),line)?;
+                    types.unify(actual[1].clone(),Ty::Int,line)?;
+                    actual[0].clone()
+                },
+                "listappend" => { types.unify(actual[0].clone(),actual[1].clone(),line)?;
+                    let elem=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(elem)),line)?;
+                    actual[0].clone()
+                },
+                "listflatten" => { let elem=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(Ty::List(Box::new(elem.clone())))),line)?;
+                    Ty::List(Box::new(elem))
+                },
+                "sortint"|"sortstr" => { let elem=if name=="sortint" { Ty::Int } else { Ty::Str };
+                    types.unify(actual[0].clone(),Ty::List(Box::new(elem.clone())),line)?;
+                    Ty::List(Box::new(elem))
+                },
                 "fslist"|"fsmkdir"|"fsremove" => {
                     types.unify(actual[0].clone(), Ty::Str, line)?;
                     Ty::Data
@@ -611,6 +640,15 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "split" => format!("{{ let source={}; let needle={}; if needle.is_empty() {{ source.chars().map(|c|c.to_string()).collect::<Vec<String>>() }} else {{ source.split(&needle).map(|s|s.to_string()).collect::<Vec<String>>() }} }}",a[0],a[1]),
+                "lines" => format!("({}).lines().map(|s|s.to_string()).collect::<Vec<String>>()",a[0]),
+                "strjoin" => format!("({}).join(({}).as_str())",a[0],a[1]),
+                "listreverse" => format!("{{ let mut list={}; list.reverse(); list }}",a[0]),
+                "listtake" => format!("({}).into_iter().take(usize::try_from({}).unwrap_or(0)).collect::<Vec<_>>()",a[0],a[1]),
+                "listdrop" => format!("({}).into_iter().skip(usize::try_from({}).unwrap_or(0)).collect::<Vec<_>>()",a[0],a[1]),
+                "listappend" => format!("{{ let mut list={}; list.extend({}); list }}",a[0],a[1]),
+                "listflatten" => format!("({}).into_iter().flatten().collect::<Vec<_>>()",a[0]),
+                "sortint"|"sortstr" => format!("{{ let mut list={}; list.sort(); list }}",a[0]),
                 "fslist" => format!("ain_fs_list({})",a[0]),
                 "fsmkdir" => format!("ain_fs_mkdir({})",a[0]),
                 "fsremove" => format!("ain_fs_remove({})",a[0]),

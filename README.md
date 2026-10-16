@@ -175,6 +175,14 @@ These builtin checks are **not an OS sandbox** and do not protect against
 untrusted native FFI or permitted subprocesses. See the
 [AI tooling guide](docs/ai-tooling.md).
 
+## Concise functional transformations
+
+The standard library now includes typed text/list operations such as
+`split`, `strjoin`, `lines`, `listreverse`, `listtake`, `listdrop`,
+`listappend`, `listflatten`, `sortint`, and `sortstr`. They compile
+directly to efficient native operations and reject incompatible element
+types. See the [functional standard-library guide](docs/functional-stdlib.md).
+
 ## A first look
 
 ```text
