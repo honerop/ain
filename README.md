@@ -42,6 +42,16 @@ See [the functional data guide](docs/functional-data.md). These are new
 pre-alpha capabilities; more extensive static types, concurrent tasks,
 database support and multimedia APIs remain future work.
 
+## Native I/O, capability checks and asynchronous tasks
+
+The native backend now exposes experimental file and environment operations,
+HTTP GET/POST, explicit opt-in builtin capability checks, and asynchronous
+Data tasks with `spawn`, `ready`, `poll` and `wait`.
+
+See [the effects and tasks guide](docs/effects-tasks.md). Builtin permissions
+are not an OS-level sandbox. More extensive networking, concurrency, database,
+and multimedia APIs are planned, not yet complete.
+
 ## A first look
 
 ```text
@@ -178,6 +188,7 @@ The **reference route has been verified** with the included example programs. Th
 - Function declarations without `fn`, with recursion and forward references.
 - Basic string operations and printing in the Rust backend.
 - Experimental structured Data, lists, records, JSON, functional combinators, explicit state cells, and structured compiler diagnostics.
+- Experimental native filesystem/network functions, opt-in builtin permissions, and async Data tasks.
 - Initial typed AIR with direct LLVM IR emission for supported primitives.
 - Three-generation, C-based bootstrap experiment.
 
