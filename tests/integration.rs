@@ -520,3 +520,73 @@ fn typed_maps_reject_wrong_key_value_and_fallback_types() {
     assert!(compile("print maplen 3").is_err());
     assert!(compile("print maphas mapone \"a\" 2 1").is_err());
 }
+
+#[test]
+fn native_wav_synthesis_creates_valid_pcm() {
+    let path = std::env::temp_dir().join(format!("ain-wave-{}.wav", std::process::id()));
+    let spec = r#"{"rate":8000,"notes":[{"hz":440,"ms":200,"volume":90},{"hz":0,"ms":100,"volume":0}]}"#;
+    let source = format!("result = wavwrite {:?} json {:?}\nprint asbool field result \"ok\"\nprint asint field result \"value\"\n",
+        path.to_str().unwrap(), spec);
+    assert_eq!(execute(&source), "true\n2400\n");
+    let bytes = fs::read(&path).unwrap();
+    assert_eq!(&bytes[..4], b"RIFF");
+    assert_eq!(&bytes[8..12], b"WAVE");
+    assert_eq!(&bytes[12..16], b"fmt ");
+    assert_eq!(u32::from_le_bytes(bytes[24..28].try_into().unwrap()), 8000);
+    assert_eq!(u16::from_le_bytes(bytes[34..36].try_into().unwrap()), 16);
+    assert_eq!(bytes.len(), 44 + 2400 * 2);
+    assert!(bytes[44..444].iter().any(|&b| b != 0));
+    fs::remove_file(path).unwrap();
+}
+#[test]
+fn wav_rejects_out_of_range_notes_without_writing() {
+    let path = std::env::temp_dir().join(format!("ain-bad-wave-{}.wav", std::process::id()));
+    let spec = r#"{"notes":[{"hz":999999,"ms":10}]}"#;
+    let source = format!("result = wavwrite {:?} json {:?}\nprint asbool field result \"ok\"\n",
+        path.to_str().unwrap(), spec);
+    assert_eq!(execute(&source), "false\n");
+    assert!(!path.exists());
+}
+#[test]
+fn native_svg_export_escapes_untrusted_text() {
+    let path = std::env::temp_dir().join(format!("ain-svg-{}.svg", std::process::id()));
+    let spec = r##"{"width":120,"height":90,"shapes":[{"kind":"rect","x":0,"y":2,"width":100,"height":80,"fill":"#00ccff"},{"kind":"text","x":4,"y":20,"value":"<hello & world>","fill":"black"}]}"##;
+    let source = format!("result = svgwrite {:?} json {:?}\nprint asbool field result \"ok\"\nprint asint field result \"value\"\n",
+        path.to_str().unwrap(), spec);
+    assert_eq!(execute(&source), "true\n2\n");
+    let svg = fs::read_to_string(&path).unwrap();
+    assert!(svg.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""));
+    assert!(svg.contains("fill=\"#00ccff\""));
+    assert!(svg.contains("&lt;hello &amp; world&gt;"));
+    assert!(!svg.contains("<hello & world>"));
+    fs::remove_file(path).unwrap();
+}
+#[test]
+fn gltf_triangle_export_has_buffer_views_and_accessors() {
+    let path = std::env::temp_dir().join(format!("ain-mesh-{}.gltf", std::process::id()));
+    let spec = r#"{"positions":[[0,0,0],[1,0,0],[0,1,0]],"indices":[0,1,2]}"#;
+    let source = format!("result = gltfwrite {:?} json {:?}\nprint asbool field result \"ok\"\nprint asint field result \"value\"\n",
+        path.to_str().unwrap(), spec);
+    assert_eq!(execute(&source), "true\n3\n");
+    let gltf = fs::read_to_string(&path).unwrap();
+    assert!(gltf.contains("\"version\":\"2.0\""));
+    assert!(gltf.contains("\"componentType\":5126"));
+    assert!(gltf.contains("\"componentType\":5125"));
+    assert!(gltf.contains("\"byteLength\":48")); // 3 VEC3 positions and 3 u32 indices
+    assert!(gltf.contains("\"min\":[0,0,0]"));
+    assert!(gltf.contains("\"max\":[1,1,0]"));
+    assert!(gltf.contains("data:application/octet-stream;base64,"));
+    fs::remove_file(path).unwrap();
+}
+#[test]
+fn media_exports_report_bad_geometry_and_type_errors() {
+    let path = std::env::temp_dir().join(format!("ain-invalid-mesh-{}.gltf", std::process::id()));
+    let spec = r#"{"positions":[[0,0,0]],"indices":[0,1,0]}"#;
+    let source = format!("result = gltfwrite {:?} json {:?}\nprint asbool field result \"ok\"\n",
+        path.to_str().unwrap(), spec);
+    assert_eq!(execute(&source), "false\n");
+    assert!(!path.exists());
+    assert!(compile("wavwrite 10 record _").is_err());
+    assert!(compile("svgwrite \"x.svg\" false").is_err());
+    assert!(compile("gltfwrite \"x.gltf\" true").is_err());
+}

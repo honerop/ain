@@ -89,7 +89,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove" => 2,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite" => 2,
         "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat" => 3,
         "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues" => 1,
         _ => return None,
@@ -327,6 +327,11 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "wavwrite"|"svgwrite"|"gltfwrite" => {
+                    types.unify(actual[0].clone(), Ty::Str, line)?;
+                    types.unify(actual[1].clone(), Ty::Data, line)?;
+                    Ty::Data
+                },
                 "mapone" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Map(Box::new(actual[1].clone())) },
                 "mapset" => { types.unify(actual[0].clone(), Ty::Map(Box::new(actual[2].clone())), line)?;
                     types.unify(actual[1].clone(), Ty::Str, line)?; actual[0].clone() },
@@ -507,6 +512,9 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "wavwrite" => format!("ain_wavwrite({}, {})", a[0], a[1]),
+                "svgwrite" => format!("ain_svgwrite({}, {})", a[0], a[1]),
+                "gltfwrite" => format!("ain_gltfwrite({}, {})", a[0], a[1]),
                 "mapone" => format!("ain_map_one({}, {})", a[0], a[1]),
                 "mapset" => format!("ain_map_set({}, {}, {})", a[0], a[1], a[2]),
                 "mapat" => format!("ain_map_at({}, {}, {})", a[0], a[1], a[2]),
@@ -684,13 +692,14 @@ fn ain_input(_: ()) -> String {
     out.push_str("}\n");
     let uses_data = out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
     if uses_data { out.push_str(include_str!("../runtime/ain_data.rs")); }
-    let uses_effects = out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") || out.contains("ain_check_permission(") || out.contains("ain_fs_")
+    let uses_effects = out.contains("ain_wavwrite(") || out.contains("ain_svgwrite(")
+        || out.contains("ain_gltfwrite(") || out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") || out.contains("ain_check_permission(") || out.contains("ain_fs_")
         || out.contains("ain_env_get(") || out.contains("ain_http_");
     if uses_effects { out.push_str(include_str!("../runtime/ain_effects.rs")); }
     let uses_tasks = out.contains("ain_task_");
     if uses_tasks { out.push_str(include_str!("../runtime/ain_tasks.rs")); }
     if out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") { out.push_str(include_str!("../runtime/ain_sqlite.rs")); }
-    let uses_serialize = out.contains("ain_csv") || out.contains("ain_trycsv(")
+    let uses_serialize = out.contains("ain_svgwrite(") || out.contains("ain_gltfwrite(") || out.contains("ain_csv") || out.contains("ain_trycsv(")
         || out.contains("ain_b64") || out.contains("ain_utf8bytes(")
         || out.contains("ain_frombytes(") || out.contains("ain_zpack(") || out.contains("ain_zunpack(");
     if uses_serialize { out.push_str(include_str!("../runtime/ain_serialize.rs")); }
@@ -705,6 +714,10 @@ fn ain_input(_: ()) -> String {
         || out.contains("ain_map_has(") || out.contains("ain_map_remove(") || out.contains("ain_map_len(")
         || out.contains("ain_map_keys(") || out.contains("ain_map_values(") {
         out.push_str(include_str!("../runtime/ain_typed_map.rs"));
+    }
+    if out.contains("ain_wavwrite(") { out.push_str(include_str!("../runtime/ain_audio.rs")); }
+    if out.contains("ain_svgwrite(") || out.contains("ain_gltfwrite(") {
+        out.push_str(include_str!("../runtime/ain_graphics.rs"));
     }
     let uses_gui = out.contains("ain_gui(") || out.contains("ain_guiupdate(") || out.contains("ain_guitick(");
     let uses_chat = out.contains("ain_chat(");
