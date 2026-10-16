@@ -82,23 +82,20 @@ Not all operations are available in the LLVM preview. For unsupported programs, 
 
 No collections, records, modules, lambdas, user generics, pattern matching, mutable variables, custom error types or general-purpose effect system yet. The grammar and syntax may change across minor releases.
 
-## Native desktop host (Rust backend only)
+## External process invocation (Rust and bootstrap C backends)
 
-The `desktop` builtin accepts three strings: the window title, a system
-instruction, and a welcome message:
+The generic `run` builtin executes one program with one argument, without
+going through a shell. The value returned is the process exit code.
 
 ```text
-desktop "Ainex" "You are a general-purpose assistant." "Ready."
+status = run "echo" "Hello from Ain"
+print status
 ```
 
-AIN generates a native GTK4 desktop executable (not HTML or a browser app).
-The runtime provides a conversation view, provider selector, model entry,
-and Vim-style keyboard navigation. It supports DeepInfra via
-`DEEPINFRA_API_KEY` and an authenticated official Codex CLI for ChatGPT
-subscriptions. Credentials are never saved in the project.
+For a more complex application, put native platform libraries and application
+logic in a separate executable, not in the language compiler. The `run` builtin
+can launch that executable without teaching Ain about GTK, browsers or AI providers.
 
-Build with the Rust compiler backend (`ainc build` or `ainc run`).
-GTK4 libraries discoverable through `pkg-config` are required for
-programs using `desktop`; ordinary AIN programs have no GTK4 dependency.
-The LLVM backend does not implement this builtin. The independent bootstrap
-compiler currently emits a runtime diagnostic if it is invoked.
+**Security:** `run` can execute external programs with the user's permissions.
+Do not run untrusted Ain code. This experimental builtin is not in the LLVM
+backend yet.

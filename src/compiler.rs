@@ -88,7 +88,8 @@ struct Program { functions: Vec<Function>, items: Vec<Item> }
 fn builtin_arity(name: &str) -> Option<usize> {
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
-        "if"|"replace"|"clamp"|"desktop" => 3,
+        "if"|"replace"|"clamp" => 3,
+        "run" => 2,
         "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input" => 1,
         _ => return None,
     })
@@ -241,7 +242,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
-                "desktop" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Unit },
+                "run" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Int },
                 "input" => { types.unify(actual[0].clone(), Ty::Unit, line)?; string },
                 "num" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Int },
                 "isnum" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Bool },
@@ -330,7 +331,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
-                "desktop" => format!("ain_desktop({}, {}, {})", a[0], a[1], a[2]),
+                "run" => format!("std::process::Command::new({}).arg({}).status().expect(\"cannot run process\").code().unwrap_or(1) as i64", a[0], a[1]),
                 "str" => format!("ain_str({})", a[0]),
                 "len" => format!("(({}).chars().count() as i64)", a[0]),
                 "upper" => format!("({}).to_uppercase()", a[0]),
@@ -429,9 +430,6 @@ fn ain_input(_: ()) -> String {
         }
     }
     out.push_str("}\n");
-    if out.contains("ain_desktop(") {
-        out.push_str(include_str!("../runtime/ain_desktop.rs"));
-    }
     out
 }
 
@@ -468,11 +466,11 @@ mod tests {
     #[test] fn expressions_can_contain_hash_string() { assert!(compile("print \"# not a comment\" # comment").is_ok()); }
     #[test] fn if_expression() { assert!(compile("choose x = if > x 5 x 5\nprint choose 9").is_ok()); }
     #[test] fn string_builtins() { assert!(compile("x = concat upper \"hi\" \"!\"\nprint x").is_ok()); }
-    #[test] fn desktop_accepts_strings() {
-        let compiled = compile("desktop \"Ainex\" \"general assistant\" \"web/index.html\"").unwrap();
-        assert!(compiled.rust.contains("ain_desktop("));
-        assert!(compile("desktop 42 \"prompt\" \"page\"").is_err());
-        assert!(compile("desktop \"title\" \"prompt\"").is_err());
+    #[test] fn run_process_accepts_two_strings() {
+        let compiled = compile("run \"echo\" \"hello\"").unwrap();
+        assert!(compiled.rust.contains("std::process::Command::new"));
+        assert!(compile("run 42 \"arg\"").is_err());
+        assert!(compile("run \"echo\"").is_err());
     }
     #[test] fn zero_arg_value() { assert!(compile("x = 10\nprint x").is_ok()); }
 }
