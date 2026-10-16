@@ -1,0 +1,78 @@
+{
+  "width": 640,
+  "height": 360,
+  "fps": 24,
+  "scenes": [
+    {
+      "duration": 2,
+      "background": "#101825",
+      "elements": [
+        {
+          "kind": "text",
+          "x": 320,
+          "y": 140,
+          "value": "What is a function?",
+          "font_size": 42,
+          "anchor": "middle",
+          "fill": "#f3f7ff",
+          "ease": "smooth",
+          "from": {"x": -300}
+        },
+        {
+          "kind": "rect",
+          "x": 180,
+          "y": 180,
+          "width": 280,
+          "height": 5,
+          "fill": "#00d4ee",
+          "ease": "smooth",
+          "from": {"width": 0}
+        }
+      ]
+    },
+    {
+      "duration": 3,
+      "background": "#101825",
+      "elements": [
+        {"kind": "text", "x": 320, "y": 47, "font_size": 30, "value": "Input becomes output", "fill": "#f3f7ff", "anchor": "middle"},
+        {"kind": "line", "x1": 75, "y1": 280, "x2": 570, "y2": 280, "stroke": "#7d90a4", "stroke_width": 3},
+        {"kind": "line", "x1": 100, "y1": 310, "x2": 100, "y2": 85, "stroke": "#7d90a4", "stroke_width": 3},
+        {
+          "kind": "circle",
+          "cx": 470,
+          "cy": 125,
+          "r": 20,
+          "fill": "#00d4ee",
+          "ease": "smooth",
+          "from": {"cx": 110, "cy": 265}
+        },
+        {"kind": "text", "x": 320, "y": 335, "font_size": 20, "anchor": "middle", "value": "A point moving on a graph", "fill": "#acbcd2"}
+      ]
+    },
+    {
+      "frames": 48,
+      "background": "#101825",
+      "elements": [
+        {
+          "kind": "text",
+          "x": 320,
+          "y": 125,
+          "value": "Explain. Animate. Render.",
+          "font_size": 32,
+          "anchor": "middle",
+          "fill": "#f3f7ff"
+        },
+        {
+          "kind": "rect",
+          "x": 90,
+          "y": 190,
+          "width": 460,
+          "height": 45,
+          "fill": "#00d4ee",
+          "ease": "smooth",
+          "from": {"width": 0}
+        }
+      ]
+    }
+  ]
+}
