@@ -117,6 +117,16 @@ All accept structured `Data` and return recoverable errors. They do not yet
 provide streaming playback, interactive scenes, hardware-accelerated rendering,
 or game physics. See the [multimedia guide](docs/media.md).
 
+## Native TCP and local HTTP server
+
+The standard runtime now provides `tcprequest` for bounded text TCP
+request/response and `httpserveonce` for a loopback-only HTTP/1.1 response.
+Both return recoverable Data results and enforce the optional network
+capability. This is a networking foundation, not yet a general-purpose
+streaming socket or production server framework.
+
+See the [network reference](docs/network.md).
+
 ## A first look
 
 ```text
