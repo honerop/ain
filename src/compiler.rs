@@ -845,7 +845,7 @@ fn ain_input(_: ()) -> String {
         }
     }
     out.push_str("}\n");
-    let uses_data = out.contains("ain_chat(") || out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
+    let uses_data = out.contains("ain_chat(") || out.contains("ain_browser(") || out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
     if uses_data { out.push_str(include_str!("../runtime/ain_data.rs")); }
     let uses_effects = out.contains("ain_fs_list(") || out.contains("ain_fs_mkdir(")
         || out.contains("ain_fs_remove(") || out.contains("ain_process_run(")
