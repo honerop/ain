@@ -81,6 +81,15 @@ operations, including type-checked fallback values and a recoverable
 These builtins do not yet replace every panicking operation, and general
 user-defined ADTs and pattern matching remain unimplemented.
 
+## Structured HTTP client
+
+The native backend supports `httprequest` for HTTP methods, validated
+headers, request bodies, timeout/redirect settings, and structured status,
+response headers and text. Transport errors are returned as recoverable
+`Data` results. See the [HTTP client guide](docs/structured-http.md).
+
+The API remains synchronous; true streaming and socket servers are future work.
+
 ## A first look
 
 ```text
