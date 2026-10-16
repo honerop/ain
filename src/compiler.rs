@@ -89,9 +89,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
-        "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost" => 2,
-        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack" => 1,
+        "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter" => 2,
+        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold" => 3,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen" => 1,
         _ => return None,
     })
 }
@@ -177,10 +177,16 @@ fn parse(source: &str) -> Result<Program, CompileError> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Ty { Int, Bool, Str, Data, Cell, Task, Unit, Var(usize) }
+enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Unit, Var(usize) }
 impl Ty {
-    fn rust(&self) -> &'static str {
-        match self { Ty::Int => "i64", Ty::Bool => "bool", Ty::Str => "String", Ty::Data => "AinData", Ty::Cell => "AinCell", Ty::Task => "AinTask", Ty::Unit => "()", Ty::Var(_) => unreachable!() }
+    fn rust(&self) -> String {
+        match self {
+            Ty::Int => "i64".into(), Ty::Bool => "bool".into(),
+            Ty::Str => "String".into(), Ty::Data => "AinData".into(),
+            Ty::Cell => "AinCell".into(), Ty::Task => "AinTask".into(),
+            Ty::List(inner) => format!("Vec<{}>", inner.rust()),
+            Ty::Unit => "()".into(), Ty::Var(_) => unreachable!("unresolved type"),
+        }
     }
 }
 struct Types { substitutions: Vec<Option<Ty>> }
@@ -195,7 +201,22 @@ impl Types {
                     self.substitutions[i] = Some(resolved.clone()); resolved
                 } else { Ty::Var(i) }
             }
+            Ty::List(inner) => Ty::List(Box::new(self.resolve(*inner))),
             t => t,
+        }
+    }
+    fn occurs(&mut self, id: usize, ty: Ty) -> bool {
+        match self.resolve(ty) {
+            Ty::Var(j) => id == j,
+            Ty::List(inner) => self.occurs(id, *inner),
+            _ => false,
+        }
+    }
+    fn unresolved(ty: &Ty) -> bool {
+        match ty {
+            Ty::Var(_) => true,
+            Ty::List(inner) => Self::unresolved(inner),
+            _ => false,
         }
     }
     fn unify(&mut self, a: Ty, b: Ty, line: usize) -> Result<(), CompileError> {
@@ -203,16 +224,20 @@ impl Types {
         let b = self.resolve(b);
         match (a, b) {
             (Ty::Var(a), Ty::Var(b)) if a == b => Ok(()),
-            (Ty::Var(i), t) | (t, Ty::Var(i)) => { self.substitutions[i] = Some(t); Ok(()) },
+            (Ty::Var(i), t) | (t, Ty::Var(i)) => {
+                if self.occurs(i, t.clone()) { return Err(err(line, "recursive list type is not supported")); }
+                self.substitutions[i] = Some(t); Ok(())
+            },
+            (Ty::List(a), Ty::List(b)) => self.unify(*a, *b, line),
             (a, b) if a == b => Ok(()),
             (a, b) => Err(err(line, format!("type mismatch: expected {:?}, found {:?}", a, b))),
         }
     }
     fn concrete(&mut self, ty: Ty, line: usize, what: &str) -> Result<Ty, CompileError> {
-        match self.resolve(ty) {
-            Ty::Var(_) => Err(err(line, format!("cannot infer type of {what}; use it in a typed operation or call"))),
-            t => Ok(t),
-        }
+        let resolved = self.resolve(ty);
+        if Self::unresolved(&resolved) {
+            Err(err(line, format!("cannot infer type of {what}; use it in a typed operation or call")))
+        } else { Ok(resolved) }
     }
 }
 #[derive(Clone)]
@@ -228,6 +253,35 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
         Expr::Int(_) => Ok(Ty::Int), Expr::Bool(_) => Ok(Ty::Bool), Expr::Str(_) => Ok(Ty::Str), Expr::Unit => Ok(Ty::Unit),
         Expr::Var(w) => env.get(w).cloned().ok_or_else(|| err(line, format!("unknown variable '{w}' (functions cannot capture top-level values in 0.2.0)"))),
         Expr::Call(name, args) => {
+            if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
+                let Expr::Str(fn_name) = &args[0] else {
+                    return Err(err(line, "list callbacks require a quoted function name"));
+                };
+                let sig = functions.get(fn_name).ok_or_else(||
+                    err(line, format!("unknown list callback '{}'", fn_name)))?;
+                let arity = if name == "listfold" { 2 } else { 1 };
+                if sig.args.len() != arity {
+                    return Err(err(line, format!("list callback '{}' must take {} parameter(s)", fn_name, arity)));
+                }
+                let (input, initial) = if name == "listfold" {
+                    (check_expr(&args[2], line, env, functions, types)?,
+                     Some(check_expr(&args[1], line, env, functions, types)?))
+                } else {
+                    (check_expr(&args[1], line, env, functions, types)?, None)
+                };
+                let element = if name == "listfold" { sig.args[1].clone() } else { sig.args[0].clone() };
+                types.unify(input, Ty::List(Box::new(element.clone())), line)?;
+                if let Some(seed) = initial {
+                    types.unify(seed.clone(), sig.args[0].clone(), line)?;
+                    types.unify(seed.clone(), sig.ret.clone(), line)?;
+                    return Ok(seed);
+                }
+                if name == "listfilter" {
+                    types.unify(sig.ret.clone(), Ty::Bool, line)?;
+                    return Ok(Ty::List(Box::new(element)));
+                }
+                return Ok(Ty::List(Box::new(sig.ret.clone())));
+            }
             if matches!(name.as_str(), "map"|"filter"|"fold"|"iterate"|"each"|"spawn") {
                 let Expr::Str(function_name) = &args[0] else {
                     return Err(err(line, "functional operation requires a quoted function name as its first argument"));
@@ -266,6 +320,14 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "listof" => Ty::List(Box::new(actual[0].clone())),
+                "listpush" => { types.unify(actual[0].clone(), Ty::List(Box::new(actual[1].clone())), line)?; actual[0].clone() },
+                "listat" => { types.unify(actual[1].clone(), Ty::Int, line)?;
+                    let elem = types.fresh();
+                    types.unify(actual[0].clone(), Ty::List(Box::new(elem.clone())), line)?;
+                    elem
+                },
+                "listlen" => { let elem=types.fresh(); types.unify(actual[0].clone(), Ty::List(Box::new(elem)), line)?; Ty::Int },
                 "csvparse"|"trycsv"|"b64decode"|"utf8bytes" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
                 "csvwrite"|"b64encode" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Str },
                 "frombytes"|"zpack"|"zunpack" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
@@ -369,9 +431,19 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
         Expr::Unit => "()".into(),
         Expr::Var(w) => {
             let ty = local.get(w).or_else(|| global.get(w)).expect("checked variable");
-            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
+            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
         }
         Expr::Call(name, args) => {
+            if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
+                let Expr::Str(callback) = &args[0] else { unreachable!("callback checked"); };
+                let a: Vec<String> = args[1..].iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
+                return match name.as_str() {
+                    "listmap" => format!("ain_list_map({}, {})", a[0], safe_id(callback)),
+                    "listfilter" => format!("ain_list_filter({}, {})", a[0], safe_id(callback)),
+                    "listfold" => format!("ain_list_fold({}, {}, {})", a[1], a[0], safe_id(callback)),
+                    _ => unreachable!()
+                }
+            }
             if matches!(name.as_str(), "map"|"filter"|"fold"|"iterate"|"each"|"spawn") {
                 let Expr::Str(callback) = &args[0] else { unreachable!("callback checked"); };
                 let a: Vec<String> = args[1..].iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
@@ -399,6 +471,10 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "listof" => format!("vec![{}]", a[0]),
+                "listpush" => format!("{{ let mut xs = {}; xs.push({}); xs }}", a[0], a[1]),
+                "listat" => format!("({})[usize::try_from({}).expect(\"invalid list index\")].clone()", a[0], a[1]),
+                "listlen" => format!("({}).len() as i64", a[0]),
                 "csvparse" => format!("ain_csvparse({})", a[0]),
                 "trycsv" => format!("ain_trycsv({})", a[0]),
                 "csvwrite" => format!("ain_csvwrite({})", a[0]),
@@ -484,6 +560,7 @@ fn emit(checked: &Checked) -> String {
     out.push_str("impl AinText for bool { fn ain_text(&self) -> String { self.to_string() } }\n");
     out.push_str("impl AinText for String { fn ain_text(&self) -> String { self.clone() } }\n");
     out.push_str("impl AinText for () { fn ain_text(&self) -> String { \"()\".to_string() } }\n");
+    out.push_str("impl<T: AinText> AinText for Vec<T> { fn ain_text(&self) -> String { format!(\"[{}]\", self.iter().map(|x| x.ain_text()).collect::<Vec<_>>().join(\",\")) } }\n");
     out.push_str("fn ain_print<T: AinText>(v: T) { println!(\"{}\", v.ain_text()); }\n");
     out.push_str("fn ain_str<T: AinText>(v: T) -> String { v.ain_text() }\n\n");
     out.push_str(r#"fn ain_before(s: String, needle: String) -> String {
@@ -559,6 +636,9 @@ fn ain_input(_: ()) -> String {
     if uses_serialize { out.push_str(include_str!("../runtime/ain_serialize.rs")); }
     if out.contains("ain_zpack(") || out.contains("ain_zunpack(") {
         out.push_str(include_str!("../runtime/ain_compress.rs"));
+    }
+    if out.contains("ain_list_map(") || out.contains("ain_list_filter(") || out.contains("ain_list_fold(") {
+        out.push_str(include_str!("../runtime/ain_typed_list.rs"));
     }
     let uses_gui = out.contains("ain_gui(");
     let uses_chat = out.contains("ain_chat(");
