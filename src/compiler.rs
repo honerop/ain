@@ -413,8 +413,7 @@ fn ain_input(_: ()) -> String {
         let body = rust_expr(&f.expr, &fn_names, &local, &HashMap::new());
         out.push_str(&format!("fn {}({}) -> {} {{\n    {}\n}}\n\n", safe_id(&f.name), args, sig.ret.rust(), body));
     }
-    out.push_str(include_str!("../runtime/ain_desktop.rs"));
-    out.push_str("\nfn main() {\n");
+    out.push_str("fn main() {\n");
     let mut globals = HashMap::new();
     for item in &checked.program.items {
         match item {
@@ -430,6 +429,9 @@ fn ain_input(_: ()) -> String {
         }
     }
     out.push_str("}\n");
+    if out.contains("ain_desktop(") {
+        out.push_str(include_str!("../runtime/ain_desktop.rs"));
+    }
     out
 }
 
