@@ -89,9 +89,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
-        "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each" => 2,
+        "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost" => 2,
         "chat"|"put"|"fold"|"iterate" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate" => 1,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll" => 1,
         _ => return None,
     })
 }
@@ -177,10 +177,10 @@ fn parse(source: &str) -> Result<Program, CompileError> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Ty { Int, Bool, Str, Data, Cell, Unit, Var(usize) }
+enum Ty { Int, Bool, Str, Data, Cell, Task, Unit, Var(usize) }
 impl Ty {
     fn rust(&self) -> &'static str {
-        match self { Ty::Int => "i64", Ty::Bool => "bool", Ty::Str => "String", Ty::Data => "AinData", Ty::Cell => "AinCell", Ty::Unit => "()", Ty::Var(_) => unreachable!() }
+        match self { Ty::Int => "i64", Ty::Bool => "bool", Ty::Str => "String", Ty::Data => "AinData", Ty::Cell => "AinCell", Ty::Task => "AinTask", Ty::Unit => "()", Ty::Var(_) => unreachable!() }
     }
 }
 struct Types { substitutions: Vec<Option<Ty>> }
@@ -228,7 +228,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
         Expr::Int(_) => Ok(Ty::Int), Expr::Bool(_) => Ok(Ty::Bool), Expr::Str(_) => Ok(Ty::Str), Expr::Unit => Ok(Ty::Unit),
         Expr::Var(w) => env.get(w).cloned().ok_or_else(|| err(line, format!("unknown variable '{w}' (functions cannot capture top-level values in 0.2.0)"))),
         Expr::Call(name, args) => {
-            if matches!(name.as_str(), "map"|"filter"|"fold"|"iterate"|"each") {
+            if matches!(name.as_str(), "map"|"filter"|"fold"|"iterate"|"each"|"spawn") {
                 let Expr::Str(function_name) = &args[0] else {
                     return Err(err(line, "functional operation requires a quoted function name as its first argument"));
                 };
@@ -249,7 +249,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                         types.unify(actual, Ty::Data, line)?;
                     }
                 }
-                return Ok(if name == "each" { Ty::Unit } else { Ty::Data });
+                return Ok(if name == "each" { Ty::Unit } else if name == "spawn" { Ty::Task } else { Ty::Data });
             }
             let actual: Vec<Ty> = args.iter().map(|e| check_expr(e, line, env, functions, types)).collect::<Result<_, _>>()?;
             if let Some(sig) = functions.get(name) {
@@ -279,6 +279,12 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "keys" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
                 "cell" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Cell },
                 "readstate" => { types.unify(actual[0].clone(), Ty::Cell, line)?; Ty::Data },
+                "fsread"|"environ"|"httpget" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Str },
+                "fsexists" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Bool },
+                "fswrite"|"httppost" => { for ty in actual { types.unify(ty, Ty::Str, line)?; }
+                    if name == "fswrite" { Ty::Unit } else { Ty::Str } },
+                "ready" => { types.unify(actual[0].clone(), Ty::Task, line)?; Ty::Bool },
+                "wait"|"poll" => { types.unify(actual[0].clone(), Ty::Task, line)?; Ty::Data },
                 "setstate" => { types.unify(actual[0].clone(), Ty::Cell, line)?; types.unify(actual[1].clone(), Ty::Data, line)?; Ty::Unit },
                 "swapstate" => { types.unify(actual[0].clone(), Ty::Cell, line)?; types.unify(actual[1].clone(), Ty::Data, line)?; Ty::Data },
                 "pair"|"push" => { for a in actual { types.unify(a, Ty::Data, line)?; } Ty::Data },
@@ -359,10 +365,10 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
         Expr::Unit => "()".into(),
         Expr::Var(w) => {
             let ty = local.get(w).or_else(|| global.get(w)).expect("checked variable");
-            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
+            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
         }
         Expr::Call(name, args) => {
-            if matches!(name.as_str(), "map"|"filter"|"fold"|"iterate"|"each") {
+            if matches!(name.as_str(), "map"|"filter"|"fold"|"iterate"|"each"|"spawn") {
                 let Expr::Str(callback) = &args[0] else { unreachable!("callback checked"); };
                 let a: Vec<String> = args[1..].iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
                 return match name.as_str() {
@@ -371,6 +377,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                     "fold" => format!("ain_data_fold({}, {}, {})", a[1], a[0], safe_id(callback)),
                     "iterate" => format!("ain_data_iterate({}, {}, {})", a[0], a[1], safe_id(callback)),
                     "each" => format!("ain_data_each({}, {})", a[0], safe_id(callback)),
+                    "spawn" => format!("ain_task_spawn({}, {})", safe_id(callback), a[0]),
                     _ => unreachable!()
                 };
             }
@@ -388,7 +395,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
-                "run" => format!("std::process::Command::new({}).arg({}).status().expect(\"cannot run process\").code().unwrap_or(1) as i64", a[0], a[1]),
+                "run" => format!("{{ ain_check_permission(\"process\"); std::process::Command::new({}).arg({}).status().expect(\"cannot run process\").code().unwrap_or(1) as i64 }}", a[0], a[1]),
                 "json" => format!("ain_json({})", a[0]),
                 "tryjson" => format!("ain_tryjson({})", a[0]),
                 "encode" => format!("({}).json()", a[0]),
@@ -405,6 +412,15 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "keys" => format!("ain_data_keys({})", a[0]),
                 "cell" => format!("ain_data_state({})", a[0]),
                 "readstate" => format!("ain_data_readstate({})", a[0]),
+                "fsread" => format!("ain_fs_read({})", a[0]),
+                "fswrite" => format!("ain_fs_write({}, {})", a[0], a[1]),
+                "fsexists" => format!("ain_fs_exists({})", a[0]),
+                "environ" => format!("ain_env_get({})", a[0]),
+                "httpget" => format!("ain_http_get({})", a[0]),
+                "httppost" => format!("ain_http_post({}, {})", a[0], a[1]),
+                "ready" => format!("ain_task_ready({})", a[0]),
+                "wait" => format!("ain_task_wait({})", a[0]),
+                "poll" => format!("ain_task_poll({})", a[0]),
                 "setstate" => format!("ain_data_setstate({}, {})", a[0], a[1]),
                 "swapstate" => format!("ain_data_swapstate({}, {})", a[0], a[1]),
                 "pair" => format!("ain_data_pair({}, {})", a[0], a[1]),
@@ -413,9 +429,9 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "put" => format!("ain_data_put({}, {}, {})", a[0], a[1], a[2]),
                 "field" => format!("ain_data_field({}, {})", a[0], a[1]),
                 "hasfield" => format!("ain_data_has({}, {})", a[0], a[1]),
-                "gui" => format!("ain_gui({}, {})", a[0], a[1]),
-                "chat" => format!("ain_chat({}, {}, {})", a[0], a[1], a[2]),
-                "browser" => format!("ain_browser({}, {})", a[0], a[1]),
+                "gui" => format!("{{ ain_check_permission(\"desktop\"); ain_gui({}, {}) }}", a[0], a[1]),
+                "chat" => format!("{{ ain_check_permission(\"ai\"); ain_chat({}, {}, {}) }}", a[0], a[1], a[2]),
+                "browser" => format!("{{ ain_check_permission(\"browser\"); ain_browser({}, {}) }}", a[0], a[1]),
                 "str" => format!("ain_str({})", a[0]),
                 "len" => format!("(({}).chars().count() as i64)", a[0]),
                 "upper" => format!("({}).to_uppercase()", a[0]),
@@ -514,8 +530,13 @@ fn ain_input(_: ()) -> String {
         }
     }
     out.push_str("}\n");
-    let uses_data = out.contains("AinData") || out.contains("AinCell") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
+    let uses_data = out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
     if uses_data { out.push_str(include_str!("../runtime/ain_data.rs")); }
+    let uses_effects = out.contains("ain_check_permission(") || out.contains("ain_fs_")
+        || out.contains("ain_env_get(") || out.contains("ain_http_");
+    if uses_effects { out.push_str(include_str!("../runtime/ain_effects.rs")); }
+    let uses_tasks = out.contains("ain_task_");
+    if uses_tasks { out.push_str(include_str!("../runtime/ain_tasks.rs")); }
     let uses_gui = out.contains("ain_gui(");
     let uses_chat = out.contains("ain_chat(");
     let uses_browser = out.contains("ain_browser(");
