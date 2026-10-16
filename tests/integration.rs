@@ -428,6 +428,20 @@ print result_get result "fallback"
     assert_eq!(execute(&source), "false\nfallback\n");
 }
 
+#[test]
+fn native_gui_event_pump_is_type_checked() {
+    assert!(compile(include_str!("../examples/gui_tick.ain")).is_ok());
+    assert!(compile("guiupdate 4 \"layout\"").is_err());
+    assert!(compile("print guitick \"forty\"").is_err());
+}
+#[test]
+fn native_gui_event_pump_is_linked_only_on_demand() {
+    let code = compile(include_str!("../examples/gui_tick.ain")).unwrap().rust;
+    assert!(code.contains("fn ain_guiupdate("));
+    assert!(code.contains("fn ain_guitick("));
+    let unrelated = compile("print + 1 1").unwrap().rust;
+    assert!(!unrelated.contains("fn ain_guiupdate("));
+}
 
 #[test]
 fn structured_http_response_status_headers_and_request_body() {

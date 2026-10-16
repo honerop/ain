@@ -16,3 +16,15 @@ jobs:
         run: ./scripts/bootstrap.sh
       - name: Independent reference bootstrap
         run: ./scripts/bootstrap.sh --reference
+      - name: Install GTK4 and virtual display
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev xvfb dbus-x11
+      - name: Smoke test nonblocking GTK4 event loop in Ain
+        run: |
+          cargo run --quiet -- build examples/gui_tick.ain -o /tmp/ain-gui-tick
+          set +e
+          timeout 15s xvfb-run -a dbus-run-session /tmp/ain-gui-tick > /tmp/ain-gui.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/ain-gui.log
+          test "$code" -eq 0
+          grep -x 'tick' /tmp/ain-gui.log

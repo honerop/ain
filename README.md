@@ -81,6 +81,17 @@ operations, including type-checked fallback values and a recoverable
 These builtins do not yet replace every panicking operation, and general
 user-defined ADTs and pattern matching remain unimplemented.
 
+## Responsive native GTK4 apps
+
+Ain's native GUI runtime now supports `guiupdate title layout` to render a
+window without blocking and `guitick milliseconds` to pump GTK events while
+background `spawn` tasks are running. Unlike repeatedly calling `gui`,
+`guitick` preserves partially typed input and does not rebuild widgets.
+
+See [the GUI language reference](docs/language.md#responsive-gtk4-applications-in-ain).
+An end-to-end native GTK4 test launches a window under Xvfb and verifies a timer
+event. The GUI remains experimental and Linux-only.
+
 ## Structured HTTP client
 
 The native backend supports `httprequest` for HTTP methods, validated

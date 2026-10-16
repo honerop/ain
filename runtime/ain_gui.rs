@@ -88,6 +88,9 @@ unsafe fn ain_gui_event(gui: *mut AinGui, action: &str) {
     };
     (*gui).event = Some(format!("{action}\n{input}"));
 }
+unsafe extern "C" fn ain_gui_button_destroy(data: *mut c_void, _closure: *mut c_void) {
+    drop(Box::from_raw(data as *mut AinGuiButton));
+}
 unsafe extern "C" fn ain_gui_button_clicked(_button: *mut c_void, data: *mut c_void) {
     let command = &*(data as *mut AinGuiButton);
     ain_gui_event(command.gui, &command.id);
@@ -209,7 +212,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 let button = gtk_button_new_with_label(ain_gui_c(b).as_ptr());
                 let action = Box::into_raw(Box::new(AinGuiButton { gui, id: a.to_string() }));
                 g_signal_connect_data(button, ain_gui_c("clicked").as_ptr(),
-                    ain_gui_button_clicked as *const c_void, action.cast(), ptr::null(), 0);
+                    ain_gui_button_clicked as *const c_void, action.cast(), ain_gui_button_destroy as *const c_void, 0);
                 gtk_box_append(buttons, button);
             }
             "vim" => (*gui).vim = a == "1",
@@ -223,18 +226,49 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
         gtk_widget_grab_focus((*gui).transcript);
     } else if !(*gui).entry.is_null() { gtk_widget_grab_focus((*gui).entry); }
 }
-fn ain_gui(title: String, spec: String) -> String {
-    let gui = AIN_GUI.with(|cell| {
+fn ain_gui_instance() -> *mut AinGui {
+    AIN_GUI.with(|cell| {
         let p = cell.get();
         if p.is_null() {
             let p = unsafe { ain_gui_create() };
             cell.set(p);
             p
         } else { p }
-    });
+    })
+}
+// Paint a window but immediately return control to Ain. Call guitick while
+// network or model work continues in an Ain task, then guiupdate when ready.
+fn ain_guiupdate(title: String, spec: String) {
+    let gui = ain_gui_instance();
     unsafe {
         (*gui).event = None;
         ain_gui_render(gui, &title, &spec);
+        while g_main_context_iteration(ptr::null_mut(), 0) != 0 {}
+    }
+}
+// Processes pending GTK events without rebuilding widgets or losing typed input.
+// "tick\n" means no user event. Delay is capped at 250 ms for responsiveness.
+fn ain_guitick(delay_ms: i64) -> String {
+    if !(0..=250).contains(&delay_ms) {
+        return "error\nGUI tick delay must be 0..250 ms".into();
+    }
+    let gui = AIN_GUI.with(|cell| cell.get());
+    if gui.is_null() { return "error\nGUI has not been initialized".into(); }
+    let until = std::time::Instant::now() + std::time::Duration::from_millis(delay_ms as u64);
+    loop {
+        unsafe {
+            if let Some(event) = (*gui).event.take() { return event; }
+            // GTK callbacks (including close-request) run on this thread.
+            if g_main_context_iteration(ptr::null_mut(), 0) != 0 { continue; }
+        }
+        if std::time::Instant::now() >= until { return "tick\n".into(); }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+}
+fn ain_gui(title: String, spec: String) -> String {
+    ain_guiupdate(title, spec);
+    let gui = ain_gui_instance();
+    unsafe {
         loop {
             if let Some(event) = (*gui).event.take() { return event; }
             g_main_context_iteration(ptr::null_mut(), 1);
