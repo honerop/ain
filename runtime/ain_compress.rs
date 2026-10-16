@@ -6,7 +6,7 @@ unsafe extern "C" {
     fn compress2(destination: *mut u8, dest_len: *mut c_ulong,
         source: *const u8, source_len: c_ulong, level: i32) -> i32;
     fn uncompress(destination: *mut u8, dest_len: *mut c_ulong,
-        source: *const u8, source_len: c_ulong) -> c_int;
+        source: *const u8, source_len: c_ulong) -> i32;
 }
 fn ain_zpack(value: AinData) -> AinData {
     let bytes = ain_bytes_checked(value).unwrap_or_else(|e| panic!("zpack: {e}"));
