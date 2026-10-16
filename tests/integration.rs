@@ -79,7 +79,7 @@ fn json_roundtrip_and_canonical_object_keys() {
 print encode doc
 print size field doc "a"
 print encode keys doc
-print has doc "missing"
+print hasfield doc "missing"
 "#;
     assert_eq!(execute(source), "{\"a\":[1,2.5,null,\"a\\nb\"],\"z\":true}\n4\n[\"a\",\"z\"]\nfalse\n");
 }
@@ -112,18 +112,18 @@ fn functional_map_filter_fold() {
 even x = == % asint x 2 0
 add a b = boxint + asint a asint b
 xs = push push push array _ boxint 1 boxint 2 boxint 3
-print encode map double xs
-print encode filter even xs
-print asint fold add boxint 0 xs
+print encode map "double" xs
+print encode filter "even" xs
+print asint fold "add" boxint 0 xs
 "#;
     assert_eq!(execute(source), "[2,4,6]\n[2]\n6\n");
 }
 #[test]
 fn function_callbacks_are_type_checked() {
-    assert!(compile("f x = boxint asint x\nprint map f push array _ boxint 1").is_ok());
-    assert!(compile("f x = asint x\nprint map f array _").is_err());
-    assert!(compile("f a b = boxint + asint a asint b\nprint map f array _").is_err());
-    assert!(compile("print map missing array _").is_err());
+    assert!(compile("f x = boxint asint x\nprint map "f" push array _ boxint 1").is_ok());
+    assert!(compile("f x = asint x\nprint map "f" array _").is_err());
+    assert!(compile("f a b = boxint + asint a asint b\nprint map "f" array _").is_err());
+    assert!(compile("print map "missing" array _").is_err());
     assert!(compile("print asint boxstr \"wrong\"").is_err() == false); // dynamic data cast fails at runtime
 }
 #[test]

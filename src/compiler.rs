@@ -89,7 +89,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
-        "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"has"|"map"|"filter" => 2,
+        "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter" => 2,
         "chat"|"put"|"fold" => 3,
         "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys" => 1,
         _ => return None,
@@ -229,8 +229,8 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
         Expr::Var(w) => env.get(w).cloned().ok_or_else(|| err(line, format!("unknown variable '{w}' (functions cannot capture top-level values in 0.2.0)"))),
         Expr::Call(name, args) => {
             if matches!(name.as_str(), "map"|"filter"|"fold") {
-                let Expr::Var(function_name) = &args[0] else {
-                    return Err(err(line, "functional operation requires a named function as its first argument"));
+                let Expr::Str(function_name) = &args[0] else {
+                    return Err(err(line, "functional operation requires a quoted function name as its first argument"));
                 };
                 let signature = functions.get(function_name).ok_or_else(|| 
                     err(line, format!("unknown function '{}' in {}", function_name, name)))?;
@@ -275,8 +275,8 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "keys" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
                 "pair"|"push" => { for a in actual { types.unify(a, Ty::Data, line)?; } Ty::Data },
                 "get" => { types.unify(actual[0].clone(), Ty::Data, line)?; types.unify(actual[1].clone(), Ty::Int, line)?; Ty::Data },
-                "field"|"has" => { types.unify(actual[0].clone(), Ty::Data, line)?; types.unify(actual[1].clone(), Ty::Str, line)?;
-                    if name == "has" { Ty::Bool } else { Ty::Data } },
+                "field"|"hasfield" => { types.unify(actual[0].clone(), Ty::Data, line)?; types.unify(actual[1].clone(), Ty::Str, line)?;
+                    if name == "hasfield" { Ty::Bool } else { Ty::Data } },
                 "put" => { types.unify(actual[0].clone(), Ty::Data, line)?; types.unify(actual[1].clone(), Ty::Str, line)?;
                     types.unify(actual[2].clone(), Ty::Data, line)?; Ty::Data },
                 "gui"|"browser"|"chat" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Str },
@@ -355,7 +355,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
         }
         Expr::Call(name, args) => {
             if matches!(name.as_str(), "map"|"filter"|"fold") {
-                let Expr::Var(callback) = &args[0] else { unreachable!("callback checked"); };
+                let Expr::Str(callback) = &args[0] else { unreachable!("callback checked"); };
                 let a: Vec<String> = args[1..].iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
                 return match name.as_str() {
                     "map" => format!("ain_data_map({}, {})", a[0], safe_id(callback)),
@@ -398,7 +398,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "get" => format!("ain_data_get({}, {})", a[0], a[1]),
                 "put" => format!("ain_data_put({}, {}, {})", a[0], a[1], a[2]),
                 "field" => format!("ain_data_field({}, {})", a[0], a[1]),
-                "has" => format!("ain_data_has({}, {})", a[0], a[1]),
+                "hasfield" => format!("ain_data_has({}, {})", a[0], a[1]),
                 "gui" => format!("ain_gui({}, {})", a[0], a[1]),
                 "chat" => format!("ain_chat({}, {}, {})", a[0], a[1], a[2]),
                 "browser" => format!("ain_browser({}, {})", a[0], a[1]),
