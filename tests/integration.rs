@@ -183,3 +183,73 @@ fn structured_compiler_diagnostics() {
     assert!(String::from_utf8(output.stdout).unwrap().contains(r#""ok":true"#));
     let _ = fs::remove_dir_all(dir);
 }
+
+
+#[test]
+fn async_task_completes_and_can_be_polled() {
+    let source = r#"double x = boxint * asint x 2
+task = spawn "double" boxint 21
+result = wait task
+print asint result
+print asbool field poll task "ok"
+"#;
+    assert_eq!(execute(source), "42\ntrue\n");
+}
+#[test]
+fn async_callback_types_are_checked() {
+    assert!(compile(r#"f x = asint x
+task = spawn "f" boxint 1"#).is_err());
+    assert!(compile("print wait boxint 5").is_err());
+    assert!(compile(r#"task = spawn "missing" boxint 1"#).is_err());
+}
+#[test]
+fn file_read_write_and_exists() {
+    let path = std::env::temp_dir().join(format!("ain-fs-{}.txt", std::process::id()));
+    let source = format!(
+        "fswrite {:?} \"Hello Ain\"\\nprint fsread {:?}\\nprint fsexists {:?}\\n",
+        path.to_str().unwrap(), path.to_str().unwrap(), path.to_str().unwrap()
+    ).replace("\\n", "\n");
+    assert_eq!(execute(&source), "Hello Ain\ntrue\n");
+    fs::remove_file(&path).unwrap();
+}
+#[test]
+fn native_http_get_local_server() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let worker = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 4096];
+        let n = stream.read(&mut buf).unwrap();
+        assert!(String::from_utf8_lossy(&buf[..n]).starts_with("GET /ping"));
+        stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 4\r\nConnection: close\r\n\r\npong").unwrap();
+    });
+    let source = format!("print httpget \"http://127.0.0.1:{port}/ping\"\n");
+    assert_eq!(execute(&source), "pong\n");
+    worker.join().unwrap();
+}
+#[test]
+fn permission_checks_reject_unauthorized_file_writes() {
+    let source = "fswrite \"/tmp/ain-permission-probe\" \"secret\"\n";
+    let compiled = compile(source).unwrap().rust;
+    let dir = std::env::temp_dir().join(format!("ain-permission-{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    let rs = dir.join("main.rs");
+    let exe = dir.join("probe");
+    fs::write(&rs, compiled).unwrap();
+    let out = Command::new("rustc").args(["--edition=2021", "-O"])
+        .arg(&rs).arg("-o").arg(&exe).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let denied = Command::new(&exe).env("AIN_RESTRICTED", "1")
+        .env_remove("AIN_PERMISSIONS").output().unwrap();
+    assert!(!denied.status.success());
+    assert!(String::from_utf8_lossy(&denied.stderr).contains("capability denied"));
+    let _ = fs::remove_dir_all(dir);
+}
+#[test]
+fn effect_builtin_type_errors() {
+    assert!(compile("print fsread 7").is_err());
+    assert!(compile("fswrite \"file\" 7").is_err());
+    assert!(compile("print httpget true").is_err());
+}
