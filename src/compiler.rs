@@ -90,7 +90,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
         "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost" => 2,
-        "chat"|"put"|"fold"|"iterate" => 3,
+        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec" => 3,
         "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll" => 1,
         _ => return None,
     })
@@ -266,6 +266,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "sqlquery"|"sqlexec" => { types.unify(actual[0].clone(), Ty::Str, line)?; types.unify(actual[1].clone(), Ty::Str, line)?; types.unify(actual[2].clone(), Ty::Data, line)?; Ty::Data },
                 "run" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Int },
                 "json"|"tryjson" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
                 "array"|"record"|"nil" => { types.unify(actual[0].clone(), Ty::Unit, line)?; Ty::Data },
@@ -395,6 +396,8 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "sqlquery" => format!("ain_sqlquery({}, {}, {})", a[0], a[1], a[2]),
+                "sqlexec" => format!("ain_sqlexec({}, {}, {})", a[0], a[1], a[2]),
                 "run" => format!("{{ ain_check_permission(\"process\"); std::process::Command::new({}).arg({}).status().expect(\"cannot run process\").code().unwrap_or(1) as i64 }}", a[0], a[1]),
                 "json" => format!("ain_json({})", a[0]),
                 "tryjson" => format!("ain_tryjson({})", a[0]),
@@ -537,6 +540,7 @@ fn ain_input(_: ()) -> String {
     if uses_effects { out.push_str(include_str!("../runtime/ain_effects.rs")); }
     let uses_tasks = out.contains("ain_task_");
     if uses_tasks { out.push_str(include_str!("../runtime/ain_tasks.rs")); }
+    if out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") { out.push_str(include_str!("../runtime/ain_sqlite.rs")); }
     let uses_gui = out.contains("ain_gui(");
     let uses_chat = out.contains("ain_chat(");
     let uses_browser = out.contains("ain_browser(");
