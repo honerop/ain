@@ -178,7 +178,7 @@ untrusted native FFI or permitted subprocesses. See the
 ## Concise functional transformations
 
 The standard library now includes typed text/list operations such as
-`split`, `join`, `lines`, `listreverse`, `listtake`, `listdrop`,
+`split`, `strjoin`, `lines`, `listreverse`, `listtake`, `listdrop`,
 `listappend`, `listflatten`, `sortint`, and `sortstr`. They compile
 directly to efficient native operations and reject incompatible element
 types. See the [functional standard-library guide](docs/functional-stdlib.md).

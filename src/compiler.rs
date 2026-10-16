@@ -145,7 +145,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
         "ffi2" => 4,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"join"|"listtake"|"listdrop"|"listappend" => 2,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend" => 2,
         "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
         "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr" => 1,
         _ => return None,
@@ -392,7 +392,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "print" => Ty::Unit,
                 "split" => { for arg in actual { types.unify(arg,Ty::Str,line)?; } Ty::List(Box::new(Ty::Str)) },
                 "lines" => { types.unify(actual[0].clone(),Ty::Str,line)?; Ty::List(Box::new(Ty::Str)) },
-                "join" => {
+                "strjoin" => {
                     types.unify(actual[0].clone(),Ty::List(Box::new(Ty::Str)),line)?;
                     types.unify(actual[1].clone(),Ty::Str,line)?;
                     Ty::Str
@@ -642,7 +642,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "print" => format!("ain_print({})", a[0]),
                 "split" => format!("{{ let source={}; let needle={}; if needle.is_empty() {{ source.chars().map(|c|c.to_string()).collect::<Vec<String>>() }} else {{ source.split(&needle).map(|s|s.to_string()).collect::<Vec<String>>() }} }}",a[0],a[1]),
                 "lines" => format!("({}).lines().map(|s|s.to_string()).collect::<Vec<String>>()",a[0]),
-                "join" => format!("({}).join(({}).as_str())",a[0],a[1]),
+                "strjoin" => format!("({}).join(({}).as_str())",a[0],a[1]),
                 "listreverse" => format!("{{ let mut list={}; list.reverse(); list }}",a[0]),
                 "listtake" => format!("({}).into_iter().take(usize::try_from({}).unwrap_or(0)).collect::<Vec<_>>()",a[0],a[1]),
                 "listdrop" => format!("({}).into_iter().skip(usize::try_from({}).unwrap_or(0)).collect::<Vec<_>>()",a[0],a[1]),

@@ -902,7 +902,7 @@ fn checked_run_defaults_to_denied_builtins_and_accepts_explicit_grants() {
 fn compact_functional_text_collection_transformations() {
     let source = r#"words = split "a,b,c" ","
 print words
-print join words "|"
+print strjoin words "|"
 print lines "first\nsecond"
 print split "é!" ""
 xs = listpush listpush listof 3 1 2
@@ -921,7 +921,7 @@ print sortstr listpush listof "z" "a"
 #[test]
 fn extra_functional_operations_reject_ill_typed_arguments() {
     assert!(compile("print split 42 \",\"").is_err());
-    assert!(compile("print join listof 42 \",\"").is_err());
+    assert!(compile("print strjoin listof 42 \",\"").is_err());
     assert!(compile("print listreverse true").is_err());
     assert!(compile("print listtake listof \"x\" false").is_err());
     assert!(compile("print listappend listof 1 listof false").is_err());

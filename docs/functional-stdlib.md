@@ -8,7 +8,7 @@ use built-in operations for common transformations without loops or imports.
 - `split TEXT DELIMITER` gives a typed List<String>. An empty delimiter
   splits into Unicode scalar characters.
 - `lines TEXT` gives lines as a typed List<String>.
-- `join LIST_OF_STRINGS DELIMITER` returns a String.
+- `strjoin LIST_OF_STRINGS DELIMITER` returns a String.
 
 ## Homogeneous typed lists
 
@@ -21,7 +21,7 @@ use built-in operations for common transformations without loops or imports.
 
 ```text
 items = split "a,b,c" ","
-print join items " | "
+print strjoin items " | "
 numbers = listpush listpush listof 3 1 2
 print sortint numbers
 print listtake numbers 2
