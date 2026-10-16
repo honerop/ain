@@ -91,7 +91,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "if"|"replace"|"clamp" => 3,
         "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost" => 2,
         "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll" => 1,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack" => 1,
         _ => return None,
     })
 }
@@ -266,6 +266,9 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "csvparse"|"trycsv"|"b64decode"|"utf8bytes" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
+                "csvwrite"|"b64encode" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Str },
+                "frombytes"|"zpack"|"zunpack" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
                 "sqlquery"|"sqlexec" => { types.unify(actual[0].clone(), Ty::Str, line)?; types.unify(actual[1].clone(), Ty::Str, line)?; types.unify(actual[2].clone(), Ty::Data, line)?; Ty::Data },
                 "run" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Int },
                 "json"|"tryjson" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
@@ -396,6 +399,15 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "csvparse" => format!("ain_csvparse({})", a[0]),
+                "trycsv" => format!("ain_trycsv({})", a[0]),
+                "csvwrite" => format!("ain_csvwrite({})", a[0]),
+                "utf8bytes" => format!("ain_utf8bytes({})", a[0]),
+                "frombytes" => format!("ain_frombytes({})", a[0]),
+                "b64encode" => format!("ain_b64encode({})", a[0]),
+                "b64decode" => format!("ain_b64decode({})", a[0]),
+                "zpack" => format!("ain_zpack({})", a[0]),
+                "zunpack" => format!("ain_zunpack({})", a[0]),
                 "sqlquery" => format!("ain_sqlquery({}, {}, {})", a[0], a[1], a[2]),
                 "sqlexec" => format!("ain_sqlexec({}, {}, {})", a[0], a[1], a[2]),
                 "run" => format!("{{ ain_check_permission(\"process\"); std::process::Command::new({}).arg({}).status().expect(\"cannot run process\").code().unwrap_or(1) as i64 }}", a[0], a[1]),
@@ -541,6 +553,13 @@ fn ain_input(_: ()) -> String {
     let uses_tasks = out.contains("ain_task_");
     if uses_tasks { out.push_str(include_str!("../runtime/ain_tasks.rs")); }
     if out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") { out.push_str(include_str!("../runtime/ain_sqlite.rs")); }
+    let uses_serialize = out.contains("ain_csv") || out.contains("ain_trycsv(")
+        || out.contains("ain_b64") || out.contains("ain_utf8bytes(")
+        || out.contains("ain_frombytes(") || out.contains("ain_zpack(") || out.contains("ain_zunpack(");
+    if uses_serialize { out.push_str(include_str!("../runtime/ain_serialize.rs")); }
+    if out.contains("ain_zpack(") || out.contains("ain_zunpack(") {
+        out.push_str(include_str!("../runtime/ain_compress.rs"));
+    }
     let uses_gui = out.contains("ain_gui(");
     let uses_chat = out.contains("ain_chat(");
     let uses_browser = out.contains("ain_browser(");

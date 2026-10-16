@@ -77,7 +77,7 @@ fn ain_csvwrite(data: AinData) -> String {
                 AinData::Null => String::new(),
                 _ => panic!("CSV cells must be scalar Data"),
             };
-            if value.contains([',', '"', '\r', '\n']) {
+            if value.chars().any(|ch| matches!(ch, ',' | '"' | '\r' | '\n')) {
                 output.push('"');
                 for c in value.chars() { if c == '"' { output.push('"'); } output.push(c); }
                 output.push('"');

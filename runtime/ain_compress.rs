@@ -1,10 +1,10 @@
 // zlib compression for Ain byte lists. Linked only when zpack/zunpack is used.
-use std::ffi::{c_int, c_ulong};
+use std::ffi::c_ulong;
 #[link(name="z")]
 unsafe extern "C" {
     fn compressBound(source_len: c_ulong) -> c_ulong;
     fn compress2(destination: *mut u8, dest_len: *mut c_ulong,
-        source: *const u8, source_len: c_ulong, level: c_int) -> c_int;
+        source: *const u8, source_len: c_ulong, level: i32) -> i32;
     fn uncompress(destination: *mut u8, dest_len: *mut c_ulong,
         source: *const u8, source_len: c_ulong) -> c_int;
 }
