@@ -1,0 +1,243 @@
+// Generic native GTK4 GUI primitive for compiled Ain applications.
+//
+// Ain calls gui(title, layout) and receives "action\ntext" when the user
+// presses a button. The layout is a small line-oriented widget description:
+// header<TAB>text, log<TAB>text, entry<TAB>id<TAB>placeholder,
+// button<TAB>id<TAB>caption, hint<TAB>text, vim<TAB>1.
+// All application logic, content, and control flow stay in Ain.
+use std::cell::Cell;
+use std::ffi::{c_char, c_void, CStr, CString};
+use std::ptr;
+
+#[link(name = "gtk-4")]
+unsafe extern "C" {
+    fn gtk_init();
+    fn gtk_window_new() -> *mut c_void;
+    fn gtk_window_set_title(window: *mut c_void, title: *const c_char);
+    fn gtk_window_set_default_size(window: *mut c_void, width: i32, height: i32);
+    fn gtk_window_set_child(window: *mut c_void, child: *mut c_void);
+    fn gtk_window_present(window: *mut c_void);
+    fn gtk_box_new(orientation: i32, spacing: i32) -> *mut c_void;
+    fn gtk_box_append(container: *mut c_void, child: *mut c_void);
+    fn gtk_label_new(text: *const c_char) -> *mut c_void;
+    fn gtk_label_set_xalign(label: *mut c_void, alignment: f32);
+    fn gtk_label_set_wrap(label: *mut c_void, wrap: i32);
+    fn gtk_entry_new() -> *mut c_void;
+    fn gtk_entry_set_placeholder_text(entry: *mut c_void, text: *const c_char);
+    fn gtk_editable_get_text(entry: *mut c_void) -> *const c_char;
+    fn gtk_editable_set_text(entry: *mut c_void, text: *const c_char);
+    fn gtk_button_new_with_label(text: *const c_char) -> *mut c_void;
+    fn gtk_scrolled_window_new() -> *mut c_void;
+    fn gtk_scrolled_window_set_child(scroll: *mut c_void, child: *mut c_void);
+    fn gtk_scrolled_window_get_vadjustment(scroll: *mut c_void) -> *mut c_void;
+    fn gtk_adjustment_get_value(adjustment: *mut c_void) -> f64;
+    fn gtk_adjustment_get_upper(adjustment: *mut c_void) -> f64;
+    fn gtk_adjustment_get_page_size(adjustment: *mut c_void) -> f64;
+    fn gtk_adjustment_set_value(adjustment: *mut c_void, value: f64);
+    fn gtk_text_view_new() -> *mut c_void;
+    fn gtk_text_view_get_buffer(view: *mut c_void) -> *mut c_void;
+    fn gtk_text_view_set_editable(view: *mut c_void, editable: i32);
+    fn gtk_text_view_set_cursor_visible(view: *mut c_void, visible: i32);
+    fn gtk_text_view_set_wrap_mode(view: *mut c_void, mode: i32);
+    fn gtk_text_buffer_set_text(buffer: *mut c_void, text: *const c_char, size: i32);
+    fn gtk_widget_set_hexpand(widget: *mut c_void, expand: i32);
+    fn gtk_widget_set_vexpand(widget: *mut c_void, expand: i32);
+    fn gtk_widget_set_margin_start(widget: *mut c_void, margin: i32);
+    fn gtk_widget_set_margin_end(widget: *mut c_void, margin: i32);
+    fn gtk_widget_set_margin_top(widget: *mut c_void, margin: i32);
+    fn gtk_widget_set_margin_bottom(widget: *mut c_void, margin: i32);
+    fn gtk_widget_grab_focus(widget: *mut c_void) -> i32;
+    fn gtk_widget_has_focus(widget: *mut c_void) -> i32;
+    fn gtk_widget_add_css_class(widget: *mut c_void, class: *const c_char);
+    fn gtk_event_controller_key_new() -> *mut c_void;
+    fn gtk_widget_add_controller(widget: *mut c_void, controller: *mut c_void);
+    fn gtk_event_controller_set_propagation_phase(controller: *mut c_void, phase: i32);
+}
+#[link(name = "gobject-2.0")]
+unsafe extern "C" {
+    fn g_signal_connect_data(object: *mut c_void, name: *const c_char,
+        callback: *const c_void, data: *mut c_void, destroy: *const c_void, flags: i32) -> u64;
+}
+#[link(name = "glib-2.0")]
+unsafe extern "C" {
+    fn g_main_context_iteration(context: *mut c_void, block: i32) -> i32;
+}
+
+struct AinGui {
+    window: *mut c_void,
+    event: Option<String>,
+    entry: *mut c_void,
+    scroll: *mut c_void,
+    transcript: *mut c_void,
+    last_g: bool,
+    vim: bool,
+}
+struct AinGuiButton {
+    gui: *mut AinGui,
+    id: String,
+}
+thread_local! {
+    static AIN_GUI: Cell<*mut AinGui> = const { Cell::new(ptr::null_mut()) };
+}
+fn ain_gui_c(text: &str) -> CString {
+    CString::new(text.replace('\0', " ")).expect("NUL removed")
+}
+unsafe fn ain_gui_event(gui: *mut AinGui, action: &str) {
+    let input = if (*gui).entry.is_null() { String::new() } else {
+        CStr::from_ptr(gtk_editable_get_text((*gui).entry)).to_string_lossy().into_owned()
+    };
+    (*gui).event = Some(format!("{action}\n{input}"));
+}
+unsafe extern "C" fn ain_gui_button_clicked(_button: *mut c_void, data: *mut c_void) {
+    let command = &*(data as *mut AinGuiButton);
+    ain_gui_event(command.gui, &command.id);
+}
+unsafe extern "C" fn ain_gui_enter(_entry: *mut c_void, data: *mut c_void) {
+    ain_gui_event(data as *mut AinGui, "send");
+}
+unsafe extern "C" fn ain_gui_close(_window: *mut c_void, data: *mut c_void) -> i32 {
+    (*(data as *mut AinGui)).event = Some("quit\n".into());
+    1 // Defer GTK destruction until application code handles quit.
+}
+unsafe extern "C" fn ain_gui_key(_controller: *mut c_void, key: u32,
+        _hardware: u32, _modifiers: u32, data: *mut c_void) -> i32 {
+    let gui = &mut *(data as *mut AinGui);
+    if !gui.vim { return 0; }
+    if key == 0xff1b { // Escape
+        if !gui.transcript.is_null() { gtk_widget_grab_focus(gui.transcript); }
+        gui.last_g = false;
+        return 1;
+    }
+    if !gui.entry.is_null() && gtk_widget_has_focus(gui.entry) != 0 { return 0; }
+    match key {
+        0x69 | 0x3a => {
+            if gui.entry.is_null() { return 0; }
+            if key == 0x3a {
+                gtk_editable_set_text(gui.entry, ain_gui_c(":").as_ptr());
+            }
+            gtk_widget_grab_focus(gui.entry);
+        }
+        0x6a | 0x6b | 0x47 | 0x67 => {
+            if gui.scroll.is_null() { return 0; }
+            if key == 0x67 && !gui.last_g { gui.last_g = true; return 1; }
+            let a = gtk_scrolled_window_get_vadjustment(gui.scroll);
+            let bottom = (gtk_adjustment_get_upper(a) - gtk_adjustment_get_page_size(a)).max(0.0);
+            let target = match key {
+                0x6a => gtk_adjustment_get_value(a) + 60.0,
+                0x6b => gtk_adjustment_get_value(a) - 60.0,
+                0x47 => bottom,
+                _ => 0.0
+            };
+            gtk_adjustment_set_value(a, target.clamp(0.0, bottom));
+        }
+        _ => { gui.last_g = false; return 0; }
+    }
+    gui.last_g = false;
+    1
+}
+unsafe fn ain_gui_create() -> *mut AinGui {
+    gtk_init();
+    let window = gtk_window_new();
+    assert!(!window.is_null(), "Could not create GTK window");
+    gtk_window_set_default_size(window, 960, 700);
+    let gui = Box::into_raw(Box::new(AinGui {
+        window, event: None, entry: ptr::null_mut(), scroll: ptr::null_mut(),
+        transcript: ptr::null_mut(), last_g: false, vim: false,
+    }));
+    g_signal_connect_data(window, ain_gui_c("close-request").as_ptr(),
+        ain_gui_close as *const c_void, gui.cast(), ptr::null(), 0);
+    let keys = gtk_event_controller_key_new();
+    gtk_event_controller_set_propagation_phase(keys, 1);
+    g_signal_connect_data(keys, ain_gui_c("key-pressed").as_ptr(),
+        ain_gui_key as *const c_void, gui.cast(), ptr::null(), 0);
+    gtk_widget_add_controller(window, keys);
+    gui
+}
+unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
+    gtk_window_set_title((*gui).window, ain_gui_c(title).as_ptr());
+    (*gui).entry = ptr::null_mut();
+    (*gui).scroll = ptr::null_mut();
+    (*gui).transcript = ptr::null_mut();
+    (*gui).vim = false;
+    (*gui).last_g = false;
+    let root = gtk_box_new(1, 10);
+    for apply in [
+        gtk_widget_set_margin_top as unsafe extern "C" fn(*mut c_void, i32),
+        gtk_widget_set_margin_bottom, gtk_widget_set_margin_start, gtk_widget_set_margin_end
+    ] { apply(root, 18); }
+    let mut buttons = gtk_box_new(0, 8);
+    for line in spec.lines() {
+        let mut tokens = line.splitn(3, '\t');
+        let kind = tokens.next().unwrap_or("");
+        let a = tokens.next().unwrap_or("");
+        let b = tokens.next().unwrap_or("");
+        match kind {
+            "header" | "hint" => {
+                let label = gtk_label_new(ain_gui_c(a).as_ptr());
+                gtk_label_set_xalign(label, 0.0);
+                gtk_label_set_wrap(label, 1);
+                gtk_widget_add_css_class(label, ain_gui_c(
+                    if kind == "header" { "title-2" } else { "dim-label" }).as_ptr());
+                gtk_box_append(root, label);
+            }
+            "log" => {
+                let scroll = gtk_scrolled_window_new();
+                let view = gtk_text_view_new();
+                gtk_text_view_set_editable(view, 0);
+                gtk_text_view_set_cursor_visible(view, 0);
+                gtk_text_view_set_wrap_mode(view, 3);
+                gtk_widget_add_css_class(view, ain_gui_c("monospace").as_ptr());
+                gtk_text_buffer_set_text(gtk_text_view_get_buffer(view), ain_gui_c(a).as_ptr(), -1);
+                gtk_scrolled_window_set_child(scroll, view);
+                gtk_widget_set_vexpand(scroll, 1);
+                gtk_widget_set_hexpand(scroll, 1);
+                gtk_box_append(root, scroll);
+                (*gui).transcript = view;
+                (*gui).scroll = scroll;
+            }
+            "entry" => {
+                let entry = gtk_entry_new();
+                gtk_widget_set_hexpand(entry, 1);
+                gtk_entry_set_placeholder_text(entry, ain_gui_c(b).as_ptr());
+                g_signal_connect_data(entry, ain_gui_c("activate").as_ptr(),
+                    ain_gui_enter as *const c_void, gui.cast(), ptr::null(), 0);
+                gtk_box_append(root, entry);
+                (*gui).entry = entry;
+            }
+            "button" => {
+                if a.len() > 64 || a.is_empty() { continue; }
+                let button = gtk_button_new_with_label(ain_gui_c(b).as_ptr());
+                let action = Box::into_raw(Box::new(AinGuiButton { gui, id: a.to_string() }));
+                g_signal_connect_data(button, ain_gui_c("clicked").as_ptr(),
+                    ain_gui_button_clicked as *const c_void, action.cast(), ptr::null(), 0);
+                gtk_box_append(buttons, button);
+            }
+            "vim" => (*gui).vim = a == "1",
+            _ => {}
+        }
+    }
+    gtk_box_append(root, buttons);
+    gtk_window_set_child((*gui).window, root);
+    gtk_window_present((*gui).window);
+    if (*gui).vim && !(*gui).transcript.is_null() {
+        gtk_widget_grab_focus((*gui).transcript);
+    } else if !(*gui).entry.is_null() { gtk_widget_grab_focus((*gui).entry); }
+}
+fn ain_gui(title: String, spec: String) -> String {
+    let gui = AIN_GUI.with(|cell| {
+        let p = cell.get();
+        if p.is_null() {
+            let p = unsafe { ain_gui_create() };
+            cell.set(p);
+            p
+        } else { p }
+    });
+    unsafe {
+        (*gui).event = None;
+        ain_gui_render(gui, &title, &spec);
+        loop {
+            if let Some(event) = (*gui).event.take() { return event; }
+            g_main_context_iteration(ptr::null_mut(), 1);
+        }
+    }
+}
