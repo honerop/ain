@@ -18,6 +18,12 @@ jobs:
         run: ./scripts/bootstrap.sh --reference
       - name: Install GTK4 and virtual display
         run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev xvfb dbus-x11
+      - name: Smoke-test rich native GTK4 widgets
+        run: |
+          cargo run --quiet -- build examples/gui_rich.ain -o /tmp/ain-gui-rich
+          timeout 15s xvfb-run -a dbus-run-session /tmp/ain-gui-rich > /tmp/ain-gui-rich.log 2>&1
+          cat /tmp/ain-gui-rich.log
+          grep -x 'tick' /tmp/ain-gui-rich.log
       - name: Smoke test nonblocking GTK4 event loop in Ain
         run: |
           cargo run --quiet -- build examples/gui_tick.ain -o /tmp/ain-gui-tick

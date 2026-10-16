@@ -798,3 +798,14 @@ fn tuple_types_are_inferred_and_wrong_types_rejected() {
     assert!(compile("print tuplefst tuple2 true 17").is_ok());
     assert!(compile("print tuplefst tuple2 1 tuple2 true \"x\"").is_ok());
 }
+
+#[test]
+fn rich_native_gui_widgets_are_included_and_compile() {
+    let generated = compile(include_str!("../examples/gui_rich.ain")).unwrap().rust;
+    assert!(generated.contains("fn gtk_picture_new_for_filename("));
+    assert!(generated.contains("fn gtk_progress_bar_set_fraction("));
+    assert!(generated.contains("fn gtk_separator_new("));
+    assert!(generated.contains("\"action\" =>") || generated.contains("\"button\" | \"action\" =>"));
+    let ordinary = compile("print 42").unwrap().rust;
+    assert!(!ordinary.contains("fn gtk_picture_new_for_filename("));
+}
