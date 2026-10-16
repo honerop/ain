@@ -135,6 +135,13 @@ library/symbol errors. General pointer/struct/callback ABI support and safe
 native-code sandboxing are **not** implemented yet. See the
 [FFI guide](docs/ffi.md) for explicit undefined-behavior warnings.
 
+## Native TOML configuration serialization
+
+The standard runtime now includes `tomlparse` and `tomlwrite` for simple
+TOML configuration files, with recoverable errors, sorted keys and nested
+tables. It intentionally rejects unsupported TOML 1.0 constructs such as
+array-of-tables and multiline strings. See the [TOML guide](docs/toml.md).
+
 ## A first look
 
 ```text
