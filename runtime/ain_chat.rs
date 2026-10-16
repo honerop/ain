@@ -171,7 +171,7 @@ fn ain_chat(provider: String, model: String, prompt: String) -> String {
     let result = match provider.as_str() {
         "deepinfra" => ain_ai_deepinfra(&model, &prompt),
         "chatgpt" | "codex" => ain_ai_codex(&model, &prompt),
-        "openbot" | "opencode" => ain_ai_opencode(&model, &prompt),
+        "opencode" => ain_ai_opencode(&model, &prompt),
         _ => Err(format!("Unknown AI provider: {}", provider)),
     };
     result.unwrap_or_else(|error| format!("Provider error: {error}"))
