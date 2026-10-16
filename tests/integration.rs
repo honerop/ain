@@ -120,11 +120,15 @@ print asint fold "add" boxint 0 xs
 }
 #[test]
 fn function_callbacks_are_type_checked() {
-    assert!(compile("f x = boxint asint x\nprint map "f" push array _ boxint 1").is_ok());
-    assert!(compile("f x = asint x\nprint map "f" array _").is_err());
-    assert!(compile("f a b = boxint + asint a asint b\nprint map "f" array _").is_err());
-    assert!(compile("print map "missing" array _").is_err());
-    assert!(compile("print asint boxstr \"wrong\"").is_err() == false); // dynamic data cast fails at runtime
+    assert!(compile(r#"f x = boxint asint x
+print map "f" push array _ boxint 1"#).is_ok());
+    assert!(compile(r#"f x = asint x
+print map "f" array _"#).is_err());
+    assert!(compile(r#"f a b = boxint + asint a asint b
+print map "f" array _"#).is_err());
+    assert!(compile(r#"print map "missing" array _"#).is_err());
+    assert!(compile(r#"print map add array _"#).is_err());
+    assert!(compile(r#"print asint boxstr "wrong""#).is_ok());
 }
 #[test]
 fn rejects_invalid_data_builtin_types() {
