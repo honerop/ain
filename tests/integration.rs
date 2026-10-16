@@ -902,7 +902,7 @@ fn checked_run_defaults_to_denied_builtins_and_accepts_explicit_grants() {
 fn ain_assert_builtin_verifies_program_invariants() {
     let source = r#"assert == + 20 22 42 "math"
 assert not false "bool"
-assert == concat "A" "B" "AB"
+assert == concat "A" "B" "AB" "strings must concatenate"
 print "all checks passed"
 "#;
     assert_eq!(execute(source), "all checks passed\n");
