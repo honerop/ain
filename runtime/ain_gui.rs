@@ -27,6 +27,12 @@ unsafe extern "C" {
     fn gtk_editable_get_text(entry: *mut c_void) -> *const c_char;
     fn gtk_editable_set_text(entry: *mut c_void, text: *const c_char);
     fn gtk_button_new_with_label(text: *const c_char) -> *mut c_void;
+    fn gtk_progress_bar_new() -> *mut c_void;
+    fn gtk_progress_bar_set_fraction(bar: *mut c_void, fraction: f64);
+    fn gtk_progress_bar_set_text(bar: *mut c_void, text: *const c_char);
+    fn gtk_progress_bar_set_show_text(bar: *mut c_void, show: i32);
+    fn gtk_picture_new_for_filename(filename: *const c_char) -> *mut c_void;
+    fn gtk_separator_new(orientation: i32) -> *mut c_void;
     fn gtk_scrolled_window_new() -> *mut c_void;
     fn gtk_scrolled_window_set_child(scroll: *mut c_void, child: *mut c_void);
     fn gtk_scrolled_window_get_vadjustment(scroll: *mut c_void) -> *mut c_void;
@@ -41,6 +47,7 @@ unsafe extern "C" {
     fn gtk_text_view_set_wrap_mode(view: *mut c_void, mode: i32);
     fn gtk_text_buffer_set_text(buffer: *mut c_void, text: *const c_char, size: i32);
     fn gtk_widget_set_hexpand(widget: *mut c_void, expand: i32);
+    fn gtk_widget_set_size_request(widget: *mut c_void, width: i32, height: i32);
     fn gtk_widget_set_vexpand(widget: *mut c_void, expand: i32);
     fn gtk_widget_set_margin_start(widget: *mut c_void, margin: i32);
     fn gtk_widget_set_margin_end(widget: *mut c_void, margin: i32);
@@ -207,13 +214,35 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_box_append(root, entry);
                 (*gui).entry = entry;
             }
-            "button" => {
+            "button" | "action" => {
                 if a.len() > 64 || a.is_empty() { continue; }
                 let button = gtk_button_new_with_label(ain_gui_c(b).as_ptr());
+                if kind == "action" { gtk_widget_set_hexpand(button, 1); }
                 let action = Box::into_raw(Box::new(AinGuiButton { gui, id: a.to_string() }));
                 g_signal_connect_data(button, ain_gui_c("clicked").as_ptr(),
                     ain_gui_button_clicked as *const c_void, action.cast(), ain_gui_button_destroy as *const c_void, 0);
-                gtk_box_append(buttons, button);
+                gtk_box_append(if kind == "action" { root } else { buttons }, button);
+            }
+            "progress" => {
+                let percent = a.parse::<i64>().unwrap_or(0).clamp(0, 100) as f64;
+                let bar = gtk_progress_bar_new();
+                gtk_progress_bar_set_fraction(bar, percent / 100.0);
+                let caption = if b.is_empty() { format!("{}%", percent as i64) } else { b.to_string() };
+                gtk_progress_bar_set_text(bar, ain_gui_c(&caption).as_ptr());
+                gtk_progress_bar_set_show_text(bar, 1);
+                gtk_widget_set_hexpand(bar, 1);
+                gtk_box_append(root, bar);
+            }
+            "separator" => {
+                gtk_box_append(root, gtk_separator_new(0)); // horizontal separator
+            }
+            "image" => {
+                if a.len() > 4096 || a.is_empty() || a.contains('\0') { continue; }
+                ain_check_permission("read");
+                let size = b.parse::<i32>().unwrap_or(240).clamp(32, 720);
+                let picture = gtk_picture_new_for_filename(ain_gui_c(a).as_ptr());
+                gtk_widget_set_size_request(picture, size, size);
+                gtk_box_append(root, picture);
             }
             "vim" => (*gui).vim = a == "1",
             _ => {}
