@@ -902,12 +902,10 @@ fn checked_run_defaults_to_denied_builtins_and_accepts_explicit_grants() {
 fn ain_assert_builtin_verifies_program_invariants() {
     let source = r#"assert == + 20 22 42 "math"
 assert not false "bool"
-assert == jointext "A" "B" "AB"
+assert == concat "A" "B" "AB"
 print "all checks passed"
 "#;
-    // This test only exercises valid expressions. Use concat for strings.
-    let source = source.replace("jointext \"A\" \"B\" \"AB\"", "concat \"A\" \"B\" \"AB\"");
-    assert_eq!(execute(&source), "all checks passed\n");
+    assert_eq!(execute(source), "all checks passed\n");
 }
 #[test]
 fn assertion_builtin_rejects_non_bool_or_non_text_arguments() {
