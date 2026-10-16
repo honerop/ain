@@ -1,9 +1,11 @@
 import copy
+import json
+import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from apps.video.generate import encode_video, validate
+from apps.video.generate import embed_images, encode_video, validate
 
 
 SAMPLE = {
@@ -28,7 +30,6 @@ class VideoValidationTests(unittest.TestCase):
 
     def test_builtin_example(self):
         project = Path(__file__).resolve().parents[1] / "examples" / "explainer.json"
-        import json
         self.assertEqual(validate(json.loads(project.read_text())), (24, 168))
 
     def test_rejects_odd_dimensions(self):
@@ -67,6 +68,33 @@ class VideoValidationTests(unittest.TestCase):
         spec = copy.deepcopy(SAMPLE)
         spec["fps"] = 29.97
         with self.assertRaises(ValueError):
+            validate(spec)
+
+    def test_embeds_local_png(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            image = folder / "tiny.png"
+            # A minimal header is sufficient to exercise the embedding path.
+            image.write_bytes(bytes.fromhex("89504e470d0a1a0a") + b"test")
+            spec = copy.deepcopy(SAMPLE)
+            spec["scenes"][0]["elements"].append(
+                {"kind": "image", "x": 0, "y": 0, "width": 25, "height": 25,
+                 "path": "tiny.png"}
+            )
+            validate(spec)
+            embedded = embed_images(spec, folder / "project.json")
+            data = embedded["scenes"][0]["elements"][-1]
+            self.assertTrue(data["data"].startswith("data:image/png;base64,"))
+            self.assertNotIn("path", data)
+            self.assertNotIn("data", spec["scenes"][0]["elements"][-1])
+
+    def test_rejects_remote_image(self):
+        spec = copy.deepcopy(SAMPLE)
+        spec["scenes"][0]["elements"].append(
+            {"kind": "image", "x": 0, "y": 0, "width": 25, "height": 25,
+             "path": "https://example.com/image.png"}
+        )
+        with self.assertRaisesRegex(ValueError, "local"):
             validate(spec)
 
     @patch("apps.video.generate.subprocess.run")
