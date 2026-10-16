@@ -109,6 +109,14 @@ updates, lookup and iteration-ready key/value collections. Invalid key types,
 mixed values, and mismatched fallback types fail at compile time. See the
 [typed maps guide](docs/typed-maps.md).
 
+## Audio and graphics exporters
+
+The native backend includes experimental `wavwrite` for synthesized PCM audio,
+`svgwrite` for vector drawings, and `gltfwrite` for triangular 3D mesh assets.
+All accept structured `Data` and return recoverable errors. They do not yet
+provide streaming playback, interactive scenes, hardware-accelerated rendering,
+or game physics. See the [multimedia guide](docs/media.md).
+
 ## A first look
 
 ```text
