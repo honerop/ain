@@ -730,3 +730,48 @@ fn toml_builtin_types_rejected_by_compiler() {
     assert!(compile("print tomlwrite true").is_err());
     assert!(compile("print tomlwrite record _").is_ok());
 }
+
+
+#[test]
+fn formatter_is_idempotent_and_preserves_comments() {
+    use ain_compiler::format_source;
+    let source = "  # standalone comment  \n  join   a   b = concat a b   # combine\nprint  join \"a # not comment\" \"quote \\\" and \\t tab\"  # inline\n\n";
+    let formatted = format_source(source).unwrap();
+    assert_eq!(formatted,
+        "# standalone comment\njoin a b = concat a b # combine\nprint join \"a # not comment\" \"quote \\\" and \\t tab\" # inline\n\n");
+    assert_eq!(format_source(&formatted).unwrap(), formatted);
+    assert!(compile(&formatted).is_ok());
+}
+#[test]
+fn formatter_does_not_change_generated_program_results() {
+    use ain_compiler::format_source;
+    let source = "double x = * x 2\nscores = mapset  mapone \"z\"  8 \"a\"  3\nprint mapat  scores  \"z\"  0\nprint double 21\n";
+    let formatted = format_source(source).unwrap();
+    assert_eq!(execute(source), execute(&formatted));
+}
+#[test]
+fn formatter_cli_checks_and_writes_canonical_output() {
+    let dir = std::env::temp_dir().join(format!("ain-fmt-{}-{}",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+    fs::create_dir_all(&dir).unwrap();
+    let src = dir.join("bad.ain");
+    let output = dir.join("good.ain");
+    fs::write(&src, "  print   +  1   2  \n").unwrap();
+    let bin = env!("CARGO_BIN_EXE_ainc");
+    let not_formatted = Command::new(bin).arg("fmt-check").arg(&src).output().unwrap();
+    assert!(!not_formatted.status.success());
+    let formatted = Command::new(bin).arg("fmt").arg(&src)
+        .arg("-o").arg(&output).output().unwrap();
+    assert!(formatted.status.success(), "{}", String::from_utf8_lossy(&formatted.stderr));
+    assert_eq!(fs::read_to_string(&output).unwrap(), "print + 1 2\n");
+    let checked = Command::new(bin).arg("fmt-check").arg(&output).output().unwrap();
+    assert!(checked.status.success());
+    fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn formatter_rejects_invalid_source() {
+    use ain_compiler::format_source;
+    assert!(format_source("print + 1\n").is_err());
+    assert!(format_source("print \"unterminated").is_err());
+}
