@@ -136,3 +136,28 @@ fn rejects_invalid_data_builtin_types() {
     assert!(compile("print json true").is_err());
     assert!(compile("print put record _ \"name\" true").is_err());
 }
+
+
+#[test]
+fn functional_iteration_and_explicit_mutable_cells() {
+    let source = r#"advance x = boxint + asint x 1
+show x = print asint x
+numbers = push push array _ boxint 3 boxint 4
+print asint iterate "advance" 5 boxint 10
+each "show" numbers
+store = state boxint 7
+print asint readstate store
+print asint swapstate store boxint 9
+print asint readstate store
+setstate store boxint 11
+print asint readstate store
+"#;
+    assert_eq!(execute(source), "15\n3\n4\n7\n7\n9\n11\n");
+}
+#[test]
+fn loop_and_state_type_errors() {
+    assert!(compile(r#"f x = boxint + asint x 1
+print iterate "f" false boxint 0"#).is_err());
+    assert!(compile("print readstate boxint 3").is_err());
+    assert!(compile("print setstate boxint 3 boxint 2").is_err());
+}
