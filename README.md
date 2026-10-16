@@ -183,18 +183,12 @@ The standard library now includes typed text/list operations such as
 directly to efficient native operations and reject incompatible element
 types. See the [functional standard-library guide](docs/functional-stdlib.md).
 
-## JSON-driven video generation
+## Free OpenCode model provider
 
-The experimental [Ain video generator](apps/video/README.md) turns structured
-JSON scenes into animated SVG frames and encodes narrated MP4 videos using
-librsvg and FFmpeg. Scene timing, per-object animation and interpolation are
-implemented in [Ain source](apps/video/render.ain), with Python used only for
-validation and external encoder orchestration. It supports moving rectangles,
-circles, diagram lines, styled text, locally embedded images and optional narration/music.
-
-```sh
-python3 apps/video/generate.py apps/video/examples/explainer.json explainer.mp4
-```
+`chat "opencode" "" PROMPT` or `chat "opencode" "" PROMPT` calls an
+installed OpenCode CLI with the free `opencode/mimo-v2.6-flash-free` model
+by default and parses its JSONL text events. OpenBot itself is a desktop
+workspace, not a model API. See [OpenCode integration](docs/opencode.md).
 
 ## A first look
 
