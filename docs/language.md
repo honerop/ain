@@ -82,22 +82,23 @@ Not all operations are available in the LLVM preview. For unsupported programs, 
 
 No collections, records, modules, lambdas, user generics, pattern matching, mutable variables, custom error types or general-purpose effect system yet. The grammar and syntax may change across minor releases.
 
-## Desktop application host (Rust backend only)
+## Native desktop host (Rust backend only)
 
-The `desktop` builtin accepts three strings: a window title, a system prompt,
-and the path to a local HTML document. It starts a loopback-only HTTP server,
-prints its address, and opens the UI in the default browser via `xdg-open`:
+The `desktop` builtin accepts three strings: the window title, a system
+instruction, and a welcome message:
 
 ```text
-desktop "Ainex" "You are a general-purpose assistant." "web/index.html"
+desktop "Ainex" "You are a general-purpose assistant." "Ready."
 ```
 
-The document can call `POST /chat` with form-encoded `provider`, `model`,
-and `prompt` values, and the `X-Ainex-Client: 1` header. Built-in providers
-are `deepinfra` (requires `DEEPINFRA_API_KEY` and curl/jq) and `chatgpt`
-(requires an installed, authenticated Codex CLI). No credentials are stored
-in the generated executable or checked into source control.
+AIN generates a native GTK4 desktop executable (not HTML or a browser app).
+The runtime provides a conversation view, provider selector, model entry,
+and Vim-style keyboard navigation. It supports DeepInfra via
+`DEEPINFRA_API_KEY` and an authenticated official Codex CLI for ChatGPT
+subscriptions. Credentials are never saved in the project.
 
-This is an experimental minimal desktop host, not a general GUI widget library.
-It currently runs only with `ainc run` / `ainc build`, not `run-llvm`.
-The bootstrap C backend registers the builtin but fails explicitly if invoked.
+Build with the Rust compiler backend (`ainc build` or `ainc run`).
+GTK4 libraries discoverable through `pkg-config` are required for
+programs using `desktop`; ordinary AIN programs have no GTK4 dependency.
+The LLVM backend does not implement this builtin. The independent bootstrap
+compiler currently emits a runtime diagnostic if it is invoked.
