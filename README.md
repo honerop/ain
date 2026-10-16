@@ -157,6 +157,14 @@ programs can combine an integer and a string without boxing into dynamic
 JSON values. See the [typed tuples guide](docs/typed-tuples.md).
 User-defined structs and arbitrary-length tuples remain future work.
 
+## Recoverable filesystem and subprocess APIs
+
+Native programs can list directories, create paths, remove individual files,
+join paths, inspect the working directory, and run processes using structured
+argument arrays with captured output and errors. The operations are guarded
+by Ain's optional builtin permission checks, **not** by an OS sandbox.
+See the [filesystem and process guide](docs/fs-process.md).
+
 ## A first look
 
 ```text
