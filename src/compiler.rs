@@ -89,9 +89,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
-        "run"|"gui"|"browser" => 2,
-        "chat" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input" => 1,
+        "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"has"|"map"|"filter" => 2,
+        "chat"|"put"|"fold" => 3,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys" => 1,
         _ => return None,
     })
 }
@@ -177,10 +177,10 @@ fn parse(source: &str) -> Result<Program, CompileError> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Ty { Int, Bool, Str, Unit, Var(usize) }
+enum Ty { Int, Bool, Str, Data, Unit, Var(usize) }
 impl Ty {
     fn rust(&self) -> &'static str {
-        match self { Ty::Int => "i64", Ty::Bool => "bool", Ty::Str => "String", Ty::Unit => "()", Ty::Var(_) => unreachable!() }
+        match self { Ty::Int => "i64", Ty::Bool => "bool", Ty::Str => "String", Ty::Data => "AinData", Ty::Unit => "()", Ty::Var(_) => unreachable!() }
     }
 }
 struct Types { substitutions: Vec<Option<Ty>> }
@@ -228,6 +228,25 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
         Expr::Int(_) => Ok(Ty::Int), Expr::Bool(_) => Ok(Ty::Bool), Expr::Str(_) => Ok(Ty::Str), Expr::Unit => Ok(Ty::Unit),
         Expr::Var(w) => env.get(w).cloned().ok_or_else(|| err(line, format!("unknown variable '{w}' (functions cannot capture top-level values in 0.2.0)"))),
         Expr::Call(name, args) => {
+            if matches!(name.as_str(), "map"|"filter"|"fold") {
+                let Expr::Var(function_name) = &args[0] else {
+                    return Err(err(line, "functional operation requires a named function as its first argument"));
+                };
+                let signature = functions.get(function_name).ok_or_else(|| 
+                    err(line, format!("unknown function '{}' in {}", function_name, name)))?;
+                let expected_arity = if name == "fold" { 2 } else { 1 };
+                if signature.args.len() != expected_arity {
+                    return Err(err(line, format!("{} callback must take {} argument(s)", name, expected_arity)));
+                }
+                for arg in &signature.args { types.unify(arg.clone(), Ty::Data, line)?; }
+                let result_type = if name == "filter" { Ty::Bool } else { Ty::Data };
+                types.unify(signature.ret.clone(), result_type, line)?;
+                for expr in &args[1..] {
+                    let actual = check_expr(expr, line, env, functions, types)?;
+                    types.unify(actual, Ty::Data, line)?;
+                }
+                return Ok(Ty::Data);
+            }
             let actual: Vec<Ty> = args.iter().map(|e| check_expr(e, line, env, functions, types)).collect::<Result<_, _>>()?;
             if let Some(sig) = functions.get(name) {
                 for (a, expected) in actual.into_iter().zip(&sig.args) { types.unify(a, expected.clone(), line)?; }
@@ -244,6 +263,22 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
                 "run" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Int },
+                "json"|"tryjson" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
+                "array"|"record"|"nil" => { types.unify(actual[0].clone(), Ty::Unit, line)?; Ty::Data },
+                "boxint" => { types.unify(actual[0].clone(), Ty::Int, line)?; Ty::Data },
+                "boxstr" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
+                "boxbool" => { types.unify(actual[0].clone(), Ty::Bool, line)?; Ty::Data },
+                "asint" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Int },
+                "astext"|"encode" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Str },
+                "asbool" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Bool },
+                "size" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Int },
+                "keys" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
+                "pair"|"push" => { for a in actual { types.unify(a, Ty::Data, line)?; } Ty::Data },
+                "get" => { types.unify(actual[0].clone(), Ty::Data, line)?; types.unify(actual[1].clone(), Ty::Int, line)?; Ty::Data },
+                "field"|"has" => { types.unify(actual[0].clone(), Ty::Data, line)?; types.unify(actual[1].clone(), Ty::Str, line)?;
+                    if name == "has" { Ty::Bool } else { Ty::Data } },
+                "put" => { types.unify(actual[0].clone(), Ty::Data, line)?; types.unify(actual[1].clone(), Ty::Str, line)?;
+                    types.unify(actual[2].clone(), Ty::Data, line)?; Ty::Data },
                 "gui"|"browser"|"chat" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Str },
                 "input" => { types.unify(actual[0].clone(), Ty::Unit, line)?; string },
                 "num" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Int },
@@ -316,9 +351,19 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
         Expr::Unit => "()".into(),
         Expr::Var(w) => {
             let ty = local.get(w).or_else(|| global.get(w)).expect("checked variable");
-            if *ty == Ty::Str { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
+            if matches!(ty, Ty::Str | Ty::Data) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
         }
         Expr::Call(name, args) => {
+            if matches!(name.as_str(), "map"|"filter"|"fold") {
+                let Expr::Var(callback) = &args[0] else { unreachable!("callback checked"); };
+                let a: Vec<String> = args[1..].iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
+                return match name.as_str() {
+                    "map" => format!("ain_data_map({}, {})", a[0], safe_id(callback)),
+                    "filter" => format!("ain_data_filter({}, {})", a[0], safe_id(callback)),
+                    "fold" => format!("ain_data_fold({}, {}, {})", a[1], a[0], safe_id(callback)),
+                    _ => unreachable!()
+                };
+            }
             let a: Vec<String> = args.iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
             if fn_names.contains(name) { return format!("{}({})", safe_id(name), a.join(", ")); }
             match name.as_str() {
@@ -334,6 +379,26 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
                 "run" => format!("std::process::Command::new({}).arg({}).status().expect(\"cannot run process\").code().unwrap_or(1) as i64", a[0], a[1]),
+                "json" => format!("ain_json({})", a[0]),
+                "tryjson" => format!("ain_tryjson({})", a[0]),
+                "encode" => format!("({}).json()", a[0]),
+                "array" => format!("ain_data_array({})", a[0]),
+                "record" => format!("ain_data_record({})", a[0]),
+                "nil" => format!("ain_data_null({})", a[0]),
+                "boxint" => format!("ain_data_int({})", a[0]),
+                "boxstr" => format!("ain_data_text({})", a[0]),
+                "boxbool" => format!("ain_data_bool({})", a[0]),
+                "asint" => format!("ain_data_asint({})", a[0]),
+                "astext" => format!("ain_data_astext({})", a[0]),
+                "asbool" => format!("ain_data_asbool({})", a[0]),
+                "size" => format!("ain_data_size({})", a[0]),
+                "keys" => format!("ain_data_keys({})", a[0]),
+                "pair" => format!("ain_data_pair({}, {})", a[0], a[1]),
+                "push" => format!("ain_data_push({}, {})", a[0], a[1]),
+                "get" => format!("ain_data_get({}, {})", a[0], a[1]),
+                "put" => format!("ain_data_put({}, {}, {})", a[0], a[1], a[2]),
+                "field" => format!("ain_data_field({}, {})", a[0], a[1]),
+                "has" => format!("ain_data_has({}, {})", a[0], a[1]),
                 "gui" => format!("ain_gui({}, {})", a[0], a[1]),
                 "chat" => format!("ain_chat({}, {}, {})", a[0], a[1], a[2]),
                 "browser" => format!("ain_browser({}, {})", a[0], a[1]),
@@ -435,6 +500,8 @@ fn ain_input(_: ()) -> String {
         }
     }
     out.push_str("}\n");
+    let uses_data = out.contains("AinData") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
+    if uses_data { out.push_str(include_str!("../runtime/ain_data.rs")); }
     let uses_gui = out.contains("ain_gui(");
     let uses_chat = out.contains("ain_chat(");
     let uses_browser = out.contains("ain_browser(");
