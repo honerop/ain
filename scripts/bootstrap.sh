@@ -29,6 +29,12 @@ cmp build/stage1.c build/stage2.c
 cmp build/stage2.c build/stage3.c
 printf '[verified] byte-identical generated C across stages 1, 2 and 3\n'
 for file in examples/*.ain; do
+  # The desktop example requires GTK4 and an interactive session; the
+  # bootstrap proof only executes the portable primitive subset.
+  if [[ "$file" == "examples/desktop.ain" ]]; then
+    printf '[skip] %-35s GTK4 desktop (Rust backend only)\n' "$file"
+    continue
+  fi
   ./build/stage2 < "$file" > build/example.c
   gcc -std=gnu11 -O1 -I runtime -w build/example.c -o build/example
   ./build/example > build/example.out

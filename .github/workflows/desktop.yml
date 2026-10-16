@@ -1,0 +1,32 @@
+name: Native AIN desktop smoke test
+on:
+  push:
+    branches: [feature/ainex-desktop-runtime]
+  pull_request:
+    paths:
+      - 'runtime/ain_desktop.rs'
+      - 'src/compiler.rs'
+      - 'src/main.rs'
+      - 'examples/desktop.ain'
+      - '.github/workflows/desktop.yml'
+jobs:
+  gtk4-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native GTK4
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev pkg-config xvfb dbus-x11
+      - name: Test compiler
+        run: cargo test
+      - name: Compile GTK4 Ain example
+        run: cargo run -- build examples/desktop.ain -o /tmp/ain-desktop
+      - name: Launch GTK4 window in headless X11
+        run: |
+          set +e
+          timeout 8s xvfb-run -a dbus-run-session /tmp/ain-desktop > /tmp/ain-desktop.log 2>&1
+          code=$?
+          cat /tmp/ain-desktop.log
+          if [ "$code" != 124 ]; then
+            echo "Expected the desktop window to stay open until timeout; got exit $code"
+            exit 1
+          fi

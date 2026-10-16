@@ -81,3 +81,24 @@ Not all operations are available in the LLVM preview. For unsupported programs, 
 ## Current limitations
 
 No collections, records, modules, lambdas, user generics, pattern matching, mutable variables, custom error types or general-purpose effect system yet. The grammar and syntax may change across minor releases.
+
+## Native desktop host (Rust backend only)
+
+The `desktop` builtin accepts three strings: the window title, a system
+instruction, and a welcome message:
+
+```text
+desktop "Ainex" "You are a general-purpose assistant." "Ready."
+```
+
+AIN generates a native GTK4 desktop executable (not HTML or a browser app).
+The runtime provides a conversation view, provider selector, model entry,
+and Vim-style keyboard navigation. It supports DeepInfra via
+`DEEPINFRA_API_KEY` and an authenticated official Codex CLI for ChatGPT
+subscriptions. Credentials are never saved in the project.
+
+Build with the Rust compiler backend (`ainc build` or `ainc run`).
+GTK4 libraries discoverable through `pkg-config` are required for
+programs using `desktop`; ordinary AIN programs have no GTK4 dependency.
+The LLVM backend does not implement this builtin. The independent bootstrap
+compiler currently emits a runtime diagnostic if it is invoked.
