@@ -23,6 +23,15 @@ unsafe extern "C" {
     fn gtk_window_present(window: *mut c_void);
     fn gtk_box_new(orientation: i32, spacing: i32) -> *mut c_void;
     fn gtk_box_append(container: *mut c_void, child: *mut c_void);
+    fn gtk_flow_box_new() -> *mut c_void;
+    fn gtk_flow_box_insert(flow_box: *mut c_void, child: *mut c_void, position: i32);
+    fn gtk_flow_box_set_max_children_per_line(flow_box: *mut c_void, n: u32);
+    fn gtk_flow_box_set_min_children_per_line(flow_box: *mut c_void, n: u32);
+    fn gtk_flow_box_set_row_spacing(flow_box: *mut c_void, spacing: u32);
+    fn gtk_flow_box_set_column_spacing(flow_box: *mut c_void, spacing: u32);
+    fn gtk_label_set_selectable(label: *mut c_void, selectable: i32);
+    fn gtk_window_set_focus(window: *mut c_void, focus: *mut c_void);
+    fn gtk_widget_set_focusable(widget: *mut c_void, focusable: i32);
     fn gtk_label_new(text: *const c_char) -> *mut c_void;
     fn gtk_label_set_xalign(label: *mut c_void, alignment: f32);
     fn gtk_label_set_wrap(label: *mut c_void, wrap: i32);
@@ -76,18 +85,32 @@ unsafe extern "C" {
 
 
 const AIN_CYAN_CSS: &str = r#"
-.ain-theme-cyan { background: #0e1620; color: #deebf1; }
-.ain-theme-cyan .ain-header { font-size: 28px; font-weight: 700; color: #c8f7ff; }
-.ain-theme-cyan .ain-subtitle { color: #8fa8b9; font-size: 12px; }
-.ain-theme-cyan .ain-transcript-frame { background: #16222e; border: 1px solid #2c3d49; border-radius: 14px; }
-.ain-theme-cyan .ain-transcript, .ain-theme-cyan .ain-transcript text {
-    background: #16222e; color: #e0edf5; font-size: 14px;
+.ain-theme-cyan { background: #101821; color: #e0ebf3; }
+.ain-theme-cyan .ain-header { font-size: 27px; font-weight: 800; color: #70e0ed; }
+.ain-theme-cyan .ain-subtitle { color: #93aabb; font-size: 12px; }
+.ain-theme-cyan .ain-transcript-frame {
+    background: #111d28; border: 1px solid #304657; border-radius: 15px;
 }
-.ain-theme-cyan .ain-transcript { padding: 16px; }
-.ain-theme-cyan .ain-composer { min-height: 42px; border-radius: 10px; font-size: 14px; }
-.ain-theme-cyan .ain-primary { background: #33cadd; color: #091923; font-weight: 700; }
+.ain-theme-cyan .ain-message-list { padding: 16px; background: #111d28; }
+.ain-theme-cyan .ain-message { border-radius: 12px; padding: 12px 15px; margin-bottom: 7px; }
+.ain-theme-cyan .ain-role { font-size: 11px; font-weight: 800; letter-spacing: 0.8px; }
+.ain-theme-cyan .ain-message-body { font-size: 14px; color: #e5f0f6; }
+.ain-theme-cyan .ain-message-user { background: #143c49; border: 1px solid #276b7a; }
+.ain-theme-cyan .ain-message-user .ain-role { color: #73effa; }
+.ain-theme-cyan .ain-message-assistant { background: #1c2b38; border: 1px solid #324555; }
+.ain-theme-cyan .ain-message-assistant .ain-role { color: #acdcea; }
+.ain-theme-cyan .ain-message-error { background: #40252c; border: 1px solid #b45d68; }
+.ain-theme-cyan .ain-message-error .ain-role, .ain-theme-cyan .ain-message-error .ain-message-body { color: #ffc5ca; }
+.ain-theme-cyan .ain-message-system, .ain-theme-cyan .ain-message-info {
+    background: #1c2833; border: 1px solid #31414e;
+}
+.ain-theme-cyan .ain-message-system .ain-role, .ain-theme-cyan .ain-message-info .ain-role { color: #97aec1; }
+.ain-theme-cyan .ain-composer { min-height: 44px; border-radius: 11px; font-size: 14px; }
+.ain-theme-cyan .ain-composer:focus { outline-color: #33cadd; }
+.ain-theme-cyan .ain-primary { background: #39d5e7; color: #091923; font-weight: 800; border-radius: 10px; }
 .ain-theme-cyan .ain-provider { border-radius: 9px; }
 "#;
+
 struct AinGui {
     window: *mut c_void,
     event: Option<String>,
@@ -220,13 +243,65 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
         gtk_widget_set_margin_top as unsafe extern "C" fn(*mut c_void, i32),
         gtk_widget_set_margin_bottom, gtk_widget_set_margin_start, gtk_widget_set_margin_end
     ] { apply(root, 18); }
-    let mut buttons = gtk_box_new(0, 8);
+    let buttons = gtk_flow_box_new();
+    gtk_flow_box_set_max_children_per_line(buttons, 3);
+    gtk_flow_box_set_min_children_per_line(buttons, 1);
+    gtk_flow_box_set_row_spacing(buttons, 8);
+    gtk_flow_box_set_column_spacing(buttons, 8);
+    let mut message_list: *mut c_void = ptr::null_mut();
     for line in spec.lines() {
         let mut tokens = line.splitn(3, '\t');
         let kind = tokens.next().unwrap_or("");
         let a = tokens.next().unwrap_or("");
         let b = tokens.next().unwrap_or("");
         match kind {
+            "conversation" => {
+                // Messages are real GTK widgets, not a giant flattened text field.
+                let scroll = gtk_scrolled_window_new();
+                let list = gtk_box_new(1, 7);
+                gtk_widget_add_css_class(list, ain_gui_c("ain-message-list").as_ptr());
+                gtk_widget_add_css_class(scroll, ain_gui_c("ain-transcript-frame").as_ptr());
+                gtk_scrolled_window_set_child(scroll, list);
+                gtk_widget_set_vexpand(scroll, 1);
+                gtk_widget_set_hexpand(scroll, 1);
+                gtk_widget_set_focusable(scroll, 1);
+                gtk_box_append(root, scroll);
+                message_list = list;
+                (*gui).transcript = scroll;
+                (*gui).scroll = scroll;
+            }
+            "message" => {
+                if message_list.is_null() { continue; }
+                // splitn(3) keeps tabs in user text inside the body.
+                let role = match a {
+                    "user" => "user",
+                    "error" => "error",
+                    "system" => "system",
+                    "assistant" => "assistant",
+                    _ => "info"
+                };
+                let label = match role {
+                    "user" => "YOU",
+                    "assistant" => "AINEX",
+                    "error" => "ERROR",
+                    "system" => "SYSTEM",
+                    _ => "INFO"
+                };
+                let bubble = gtk_box_new(1, 6);
+                gtk_widget_add_css_class(bubble, ain_gui_c("ain-message").as_ptr());
+                gtk_widget_add_css_class(bubble, ain_gui_c(&format!("ain-message-{role}")).as_ptr());
+                let role_label = gtk_label_new(ain_gui_c(label).as_ptr());
+                gtk_label_set_xalign(role_label, 0.0);
+                gtk_widget_add_css_class(role_label, ain_gui_c("ain-role").as_ptr());
+                gtk_box_append(bubble, role_label);
+                let body = gtk_label_new(ain_gui_c(b).as_ptr());
+                gtk_label_set_xalign(body, 0.0);
+                gtk_label_set_wrap(body, 1);
+                gtk_label_set_selectable(body, 1);
+                gtk_widget_add_css_class(body, ain_gui_c("ain-message-body").as_ptr());
+                gtk_box_append(bubble, body);
+                gtk_box_append(message_list, bubble);
+            }
             "header" | "hint" => {
                 let label = gtk_label_new(ain_gui_c(a).as_ptr());
                 gtk_label_set_xalign(label, 0.0);
@@ -275,7 +350,11 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 let action = Box::into_raw(Box::new(AinGuiButton { gui, id: a.to_string() }));
                 g_signal_connect_data(button, ain_gui_c("clicked").as_ptr(),
                     ain_gui_button_clicked as *const c_void, action.cast(), ain_gui_button_destroy as *const c_void, 0);
-                gtk_box_append(if kind == "action" { root } else { buttons }, button);
+                if kind == "action" {
+                    gtk_box_append(root, button);
+                } else {
+                    gtk_flow_box_insert(buttons, button, -1);
+                }
             }
             "progress" => {
                 let percent = a.parse::<i64>().unwrap_or(0).clamp(0, 100) as f64;
@@ -307,7 +386,12 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
     gtk_window_present((*gui).window);
     // Start with a usable composer, even when Vim navigation is enabled.
     // Esc explicitly moves to the read-only transcript for normal mode.
-    if !(*gui).entry.is_null() { gtk_widget_grab_focus((*gui).entry); }
+    if !(*gui).entry.is_null() {
+        // Assign the GTK window's actual focus widget. Grabbing focus before
+        // the toplevel becomes active was unreliable in virtual displays.
+        gtk_window_set_focus((*gui).window, (*gui).entry);
+        gtk_widget_grab_focus((*gui).entry);
+    }
 }
 fn ain_gui_instance() -> *mut AinGui {
     AIN_GUI.with(|cell| {
