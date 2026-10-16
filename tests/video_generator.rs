@@ -83,5 +83,27 @@ fn ain_only_renderer_writes_valid_y4m_frames() {
     assert_eq!(actual[third + 6 + plane_length], b'~'); // U plane
     assert_eq!(actual[third + 6 + plane_length + chroma_length], b'~'); // V plane
 
+    // Also exercise the documented example (animated text, rectangle, circle).
+    fs::write(
+        &json,
+        include_str!("../apps/video/examples/explainer.json"),
+    ).unwrap();
+    let demo_path = workspace.join("explainer.y4m");
+    let demo_run = Command::new(&binary)
+        .env("AIN_VIDEO_SPEC", &json)
+        .env("AIN_VIDEO_OUTPUT", &demo_path)
+        .output()
+        .unwrap();
+    assert!(
+        demo_run.status.success(),
+        "Example render failed: {}",
+        String::from_utf8_lossy(&demo_run.stderr)
+    );
+    let demo = fs::read(&demo_path).unwrap();
+    let demo_header = b"YUV4MPEG2 W96 H64 F8:1 Ip A1:1 C420jpeg\n";
+    let demo_frame_length = 6 + 96 * 64 * 3 / 2;
+    assert!(demo.starts_with(demo_header));
+    assert_eq!(demo.len(), demo_header.len() + 16 * demo_frame_length);
+
     fs::remove_dir_all(&workspace).unwrap();
 }
