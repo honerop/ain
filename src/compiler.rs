@@ -89,8 +89,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce" => 2,
-        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat" => 3,
+        "ffi2" => 4,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0" => 2,
+        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
         "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues" => 1,
         _ => return None,
     })
@@ -327,6 +328,12 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "ffi0"|"ffi1"|"ffi2" => {
+                    types.unify(actual[0].clone(), Ty::Str, line)?;
+                    types.unify(actual[1].clone(), Ty::Str, line)?;
+                    for arg in &actual[2..] { types.unify(arg.clone(), Ty::Int, line)?; }
+                    Ty::Data
+                },
                 "tcprequest" => { types.unify(actual[0].clone(), Ty::Str, line)?;
                     types.unify(actual[1].clone(), Ty::Str, line)?; Ty::Data },
                 "httpserveonce" => { types.unify(actual[0].clone(), Ty::Int, line)?;
@@ -516,6 +523,9 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "ffi0" => format!("ain_ffi0({}, {})", a[0], a[1]),
+                "ffi1" => format!("ain_ffi1({}, {}, {})", a[0], a[1], a[2]),
+                "ffi2" => format!("ain_ffi2({}, {}, {}, {})", a[0], a[1], a[2], a[3]),
                 "tcprequest" => format!("ain_tcp_request({}, {})", a[0], a[1]),
                 "httpserveonce" => format!("ain_http_serveonce({}, {})", a[0], a[1]),
                 "wavwrite" => format!("ain_wavwrite({}, {})", a[0], a[1]),
@@ -698,7 +708,8 @@ fn ain_input(_: ()) -> String {
     out.push_str("}\n");
     let uses_data = out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
     if uses_data { out.push_str(include_str!("../runtime/ain_data.rs")); }
-    let uses_effects = out.contains("ain_tcp_request(") || out.contains("ain_http_serveonce(") || out.contains("ain_wavwrite(") || out.contains("ain_svgwrite(")
+    let uses_effects = out.contains("ain_ffi0(") || out.contains("ain_ffi1(") || out.contains("ain_ffi2(")
+        || out.contains("ain_tcp_request(") || out.contains("ain_http_serveonce(") || out.contains("ain_wavwrite(") || out.contains("ain_svgwrite(")
         || out.contains("ain_gltfwrite(") || out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") || out.contains("ain_check_permission(") || out.contains("ain_fs_")
         || out.contains("ain_env_get(") || out.contains("ain_http_");
     if uses_effects { out.push_str(include_str!("../runtime/ain_effects.rs")); }
@@ -727,6 +738,9 @@ fn ain_input(_: ()) -> String {
     }
     if out.contains("ain_tcp_request(") || out.contains("ain_http_serveonce(") {
         out.push_str(include_str!("../runtime/ain_network.rs"));
+    }
+    if out.contains("ain_ffi0(") || out.contains("ain_ffi1(") || out.contains("ain_ffi2(") {
+        out.push_str(include_str!("../runtime/ain_ffi.rs"));
     }
     let uses_gui = out.contains("ain_gui(") || out.contains("ain_guiupdate(") || out.contains("ain_guitick(");
     let uses_chat = out.contains("ain_chat(");
