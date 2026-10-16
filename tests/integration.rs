@@ -809,3 +809,48 @@ fn rich_native_gui_widgets_are_included_and_compile() {
     let ordinary = compile("print 42").unwrap().rust;
     assert!(!ordinary.contains("fn gtk_picture_new_for_filename("));
 }
+
+#[test]
+fn recoverable_directory_operations_and_sorted_listing() {
+    let dir = std::env::temp_dir().join(format!("ain-fs-native-{}-{}",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+    let nested = dir.join("inner");
+    let program = format!(r#"root = {root:?}
+inner = pathjoin root "inner"
+print asbool field fsmkdir inner "ok"
+fswrite pathjoin inner "z.txt" "last"
+fswrite pathjoin inner "a.txt" "first"
+items = fslist inner
+print asbool field items "ok"
+print encode field items "value"
+print asbool field fsremove pathjoin inner "a.txt" "ok"
+print encode field fslist inner "value"
+print asbool field workingdir _ "ok"
+"#,root=dir.to_string_lossy());
+    assert_eq!(execute(&program),"true\ntrue\n[\"a.txt\",\"z.txt\"]\ntrue\n[\"z.txt\"]\ntrue\n");
+    fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn process_arguments_are_arrays_not_shell_commands() {
+    let code = r#"argv = push push array _ boxstr "Hello %s" boxstr "Ain"
+reply = processrun "printf" argv
+print asbool field reply "ok"
+print asint field field reply "value" "code"
+print astext field field reply "value" "stdout"
+"#;
+    assert_eq!(execute(code),"true\n0\nHello Ain\n");
+    let invalid = r#"argv = push array _ boxint 12
+reply = processrun "printf" argv
+print asbool field reply "ok"
+"#;
+    assert_eq!(execute(invalid),"false\n");
+}
+#[test]
+fn extended_filesystem_types_are_checked() {
+    assert!(compile("print fslist 123").is_err());
+    assert!(compile("print fsmkdir true").is_err());
+    assert!(compile("print pathjoin \"a\" true").is_err());
+    assert!(compile("print processrun 123 array _").is_err());
+    assert!(compile("print workingdir _").is_ok());
+}
