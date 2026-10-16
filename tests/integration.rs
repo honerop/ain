@@ -897,3 +897,34 @@ fn checked_run_defaults_to_denied_builtins_and_accepts_explicit_grants() {
     assert_eq!(String::from_utf8(allowed.stdout).unwrap(),"restricted read works\n");
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn compact_functional_text_collection_transformations() {
+    let source = r#"words = split "a,b,c" ","
+print words
+print join words "|"
+print lines "first\nsecond"
+print split "é!" ""
+xs = listpush listpush listof 3 1 2
+print sortint xs
+print listreverse xs
+print listtake xs 2
+print listdrop xs 2
+print listappend xs listof 4
+inner = listpush listof listof 2 listof 3
+print listflatten inner
+print sortstr listpush listof "z" "a"
+"#;
+    assert_eq!(execute(source),
+        "[a,b,c]\na|b|c\n[first,second]\n[é,!]\n[1,2,3]\n[2,1,3]\n[3,1]\n[2]\n[3,1,2,4]\n[2,3]\n[a,z]\n");
+}
+#[test]
+fn extra_functional_operations_reject_ill_typed_arguments() {
+    assert!(compile("print split 42 \",\"").is_err());
+    assert!(compile("print join listof 42 \",\"").is_err());
+    assert!(compile("print listreverse true").is_err());
+    assert!(compile("print listtake listof \"x\" false").is_err());
+    assert!(compile("print listappend listof 1 listof false").is_err());
+    assert!(compile("print listflatten listof 1").is_err());
+    assert!(compile("print sortint listof \"not integer\"").is_err());
+}
