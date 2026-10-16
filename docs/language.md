@@ -81,3 +81,23 @@ Not all operations are available in the LLVM preview. For unsupported programs, 
 ## Current limitations
 
 No collections, records, modules, lambdas, user generics, pattern matching, mutable variables, custom error types or general-purpose effect system yet. The grammar and syntax may change across minor releases.
+
+## Desktop application host (Rust backend only)
+
+The `desktop` builtin accepts three strings: a window title, a system prompt,
+and the path to a local HTML document. It starts a loopback-only HTTP server,
+prints its address, and opens the UI in the default browser via `xdg-open`:
+
+```text
+desktop "Ainex" "You are a general-purpose assistant." "web/index.html"
+```
+
+The document can call `POST /chat` with form-encoded `provider`, `model`,
+and `prompt` values, and the `X-Ainex-Client: 1` header. Built-in providers
+are `deepinfra` (requires `DEEPINFRA_API_KEY` and curl/jq) and `chatgpt`
+(requires an installed, authenticated Codex CLI). No credentials are stored
+in the generated executable or checked into source control.
+
+This is an experimental minimal desktop host, not a general GUI widget library.
+It currently runs only with `ainc run` / `ainc build`, not `run-llvm`.
+The bootstrap C backend registers the builtin but fails explicitly if invoked.
