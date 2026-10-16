@@ -1,18 +1,14 @@
-name: Ain JSON video
+name: Ain-only Y4M video
 
 on:
   push:
     paths:
       - "apps/video/**"
-      - "runtime/ain_graphics.rs"
-      - "src/compiler.rs"
       - "tests/video_generator.rs"
       - ".github/workflows/video.yml"
   pull_request:
     paths:
       - "apps/video/**"
-      - "runtime/ain_graphics.rs"
-      - "src/compiler.rs"
       - "tests/video_generator.rs"
       - ".github/workflows/video.yml"
 
@@ -22,15 +18,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install video dependencies
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg librsvg2-bin
-      - name: Test Ain frame exporter
+      - name: Test native Ain-only video generator
         run: cargo test --test video_generator
-      - name: Test JSON validator and encoding
-        run: python3 -m unittest discover -s apps/video/tests -v
-      - name: Render demonstration MP4
-        run: python3 apps/video/generate.py apps/video/examples/explainer.json /tmp/ain-explainer.mp4
-      - name: Check video duration
-        run: |
-          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 /tmp/ain-explainer.mp4
-          test -s /tmp/ain-explainer.mp4
