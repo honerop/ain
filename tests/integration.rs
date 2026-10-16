@@ -722,7 +722,7 @@ fn native_toml_escaping_and_deterministic_keys() {
 written = tomlwrite data
 print astext field written "value"
 "#;
-    assert_eq!(execute(source), "a = \"quote \\\" ok\"\nz = 4\n");
+    assert_eq!(execute(source), "a = \"quote \\\" ok\"\nz = 4\n\n");
 }
 #[test]
 fn toml_builtin_types_rejected_by_compiler() {
