@@ -149,6 +149,14 @@ semantics; `ainc fmt-check FILE.ain` fails in CI when source is not
 canonically formatted. Comments, blank lines, literal string contents,
 and definition order remain intact. See the [formatter guide](docs/formatter.md).
 
+## Heterogeneous typed tuples
+
+The native backend supports statically inferred two-element tuples with
+`tuple2`, `tuplefst`, `tuplesnd` and `tupleswap`, so AI-generated
+programs can combine an integer and a string without boxing into dynamic
+JSON values. See the [typed tuples guide](docs/typed-tuples.md).
+User-defined structs and arbitrary-length tuples remain future work.
+
 ## A first look
 
 ```text
