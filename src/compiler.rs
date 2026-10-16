@@ -89,9 +89,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get" => 2,
-        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick" => 1,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove" => 2,
+        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat" => 3,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues" => 1,
         _ => return None,
     })
 }
@@ -177,7 +177,7 @@ fn parse(source: &str) -> Result<Program, CompileError> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
+enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Map(Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
 impl Ty {
     fn rust(&self) -> String {
         match self {
@@ -185,6 +185,7 @@ impl Ty {
             Ty::Str => "String".into(), Ty::Data => "AinData".into(),
             Ty::Cell => "AinCell".into(), Ty::Task => "AinTask".into(),
             Ty::List(inner) => format!("Vec<{}>", inner.rust()),
+            Ty::Map(inner) => format!("std::collections::BTreeMap<String, {}>", inner.rust()),
             Ty::Option(inner) => format!("Option<{}>", inner.rust()),
             Ty::Result(inner) => format!("Result<{}, String>", inner.rust()),
             Ty::Unit => "()".into(), Ty::Var(_) => unreachable!("unresolved type"),
@@ -204,6 +205,7 @@ impl Types {
                 } else { Ty::Var(i) }
             }
             Ty::List(inner) => Ty::List(Box::new(self.resolve(*inner))),
+            Ty::Map(inner) => Ty::Map(Box::new(self.resolve(*inner))),
             Ty::Option(inner) => Ty::Option(Box::new(self.resolve(*inner))),
             Ty::Result(inner) => Ty::Result(Box::new(self.resolve(*inner))),
             t => t,
@@ -212,14 +214,14 @@ impl Types {
     fn occurs(&mut self, id: usize, ty: Ty) -> bool {
         match self.resolve(ty) {
             Ty::Var(j) => id == j,
-            Ty::List(inner) | Ty::Option(inner) | Ty::Result(inner) => self.occurs(id, *inner),
+            Ty::List(inner) | Ty::Map(inner) | Ty::Option(inner) | Ty::Result(inner) => self.occurs(id, *inner),
             _ => false,
         }
     }
     fn unresolved(ty: &Ty) -> bool {
         match ty {
             Ty::Var(_) => true,
-            Ty::List(inner) | Ty::Option(inner) | Ty::Result(inner) => Self::unresolved(inner),
+            Ty::List(inner) | Ty::Map(inner) | Ty::Option(inner) | Ty::Result(inner) => Self::unresolved(inner),
             _ => false,
         }
     }
@@ -232,7 +234,7 @@ impl Types {
                 if self.occurs(i, t.clone()) { return Err(err(line, "recursive list type is not supported")); }
                 self.substitutions[i] = Some(t); Ok(())
             },
-            (Ty::List(a), Ty::List(b)) | (Ty::Option(a), Ty::Option(b)) |
+            (Ty::List(a), Ty::List(b)) | (Ty::Map(a), Ty::Map(b)) | (Ty::Option(a), Ty::Option(b)) |
                 (Ty::Result(a), Ty::Result(b)) => self.unify(*a, *b, line),
             (a, b) if a == b => Ok(()),
             (a, b) => Err(err(line, format!("type mismatch: expected {:?}, found {:?}", a, b))),
@@ -325,6 +327,23 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "mapone" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Map(Box::new(actual[1].clone())) },
+                "mapset" => { types.unify(actual[0].clone(), Ty::Map(Box::new(actual[2].clone())), line)?;
+                    types.unify(actual[1].clone(), Ty::Str, line)?; actual[0].clone() },
+                "mapat" => { types.unify(actual[0].clone(), Ty::Map(Box::new(actual[2].clone())), line)?;
+                    types.unify(actual[1].clone(), Ty::Str, line)?; actual[2].clone() },
+                "maphas" => { let elem=types.fresh();
+                    types.unify(actual[0].clone(), Ty::Map(Box::new(elem)), line)?;
+                    types.unify(actual[1].clone(), Ty::Str, line)?; Ty::Bool },
+                "mapremove" => { let elem=types.fresh();
+                    types.unify(actual[0].clone(), Ty::Map(Box::new(elem)), line)?;
+                    types.unify(actual[1].clone(), Ty::Str, line)?; actual[0].clone() },
+                "maplen" => { let elem=types.fresh();
+                    types.unify(actual[0].clone(), Ty::Map(Box::new(elem)), line)?; Ty::Int },
+                "mapkeys" => { let elem=types.fresh();
+                    types.unify(actual[0].clone(), Ty::Map(Box::new(elem)), line)?; Ty::List(Box::new(Ty::Str)) },
+                "mapvalues" => { let elem=types.fresh();
+                    types.unify(actual[0].clone(), Ty::Map(Box::new(elem.clone())), line)?; Ty::List(Box::new(elem)) },
                 "httprequest" => { types.unify(actual[0].clone(), Ty::Str, line)?; types.unify(actual[1].clone(), Ty::Str, line)?; types.unify(actual[2].clone(), Ty::Data, line)?; Ty::Data },
                 "guiupdate" => { for value in actual { types.unify(value, Ty::Str, line)?; } Ty::Unit },
                 "guitick" => { types.unify(actual[0].clone(), Ty::Int, line)?; Ty::Str },
@@ -448,7 +467,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
         Expr::Unit => "()".into(),
         Expr::Var(w) => {
             let ty = local.get(w).or_else(|| global.get(w)).expect("checked variable");
-            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
+            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
         }
         Expr::Call(name, args) => {
             if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
@@ -488,6 +507,14 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "mapone" => format!("ain_map_one({}, {})", a[0], a[1]),
+                "mapset" => format!("ain_map_set({}, {}, {})", a[0], a[1], a[2]),
+                "mapat" => format!("ain_map_at({}, {}, {})", a[0], a[1], a[2]),
+                "maphas" => format!("ain_map_has({}, {})", a[0], a[1]),
+                "mapremove" => format!("ain_map_remove({}, {})", a[0], a[1]),
+                "maplen" => format!("ain_map_len({})", a[0]),
+                "mapkeys" => format!("ain_map_keys({})", a[0]),
+                "mapvalues" => format!("ain_map_values({})", a[0]),
                 "httprequest" => format!("ain_http_request_data({}, {}, {})", a[0], a[1], a[2]),
                 "guiupdate" => format!("{{ ain_check_permission(\"desktop\"); ain_guiupdate({}, {}) }}", a[0], a[1]),
                 "guitick" => format!("{{ ain_check_permission(\"desktop\"); ain_guitick({}) }}", a[0]),
@@ -591,6 +618,7 @@ fn emit(checked: &Checked) -> String {
     out.push_str("impl AinText for String { fn ain_text(&self) -> String { self.clone() } }\n");
     out.push_str("impl AinText for () { fn ain_text(&self) -> String { \"()\".to_string() } }\n");
     out.push_str("impl<T: AinText> AinText for Vec<T> { fn ain_text(&self) -> String { format!(\"[{}]\", self.iter().map(|x| x.ain_text()).collect::<Vec<_>>().join(\",\")) } }\n");
+    out.push_str("impl<T: AinText> AinText for std::collections::BTreeMap<String,T> { fn ain_text(&self) -> String { format!(\"{{{}}}\", self.iter().map(|(k,v)| format!(\"{}:{}\", k, v.ain_text())).collect::<Vec<_>>().join(\",\")) } }\n");
     out.push_str("impl<T: AinText> AinText for Option<T> { fn ain_text(&self) -> String { match self { Some(v) => format!(\"some({})\",v.ain_text()), None => \"none\".into() } } }\n");
     out.push_str("impl<T: AinText> AinText for Result<T,String> { fn ain_text(&self) -> String { match self { Ok(v) => format!(\"ok({})\",v.ain_text()), Err(e) => format!(\"err({})\",e) } } }\n");
     out.push_str("fn ain_print<T: AinText>(v: T) { println!(\"{}\", v.ain_text()); }\n");
@@ -673,6 +701,11 @@ fn ain_input(_: ()) -> String {
         out.push_str(include_str!("../runtime/ain_typed_list.rs"));
     }
     if out.contains("ain_http_request_data(") { out.push_str(include_str!("../runtime/ain_http_client.rs")); }
+    if out.contains("ain_map_one(") || out.contains("ain_map_set(") || out.contains("ain_map_at(")
+        || out.contains("ain_map_has(") || out.contains("ain_map_remove(") || out.contains("ain_map_len(")
+        || out.contains("ain_map_keys(") || out.contains("ain_map_values(") {
+        out.push_str(include_str!("../runtime/ain_typed_map.rs"));
+    }
     let uses_gui = out.contains("ain_gui(") || out.contains("ain_guiupdate(") || out.contains("ain_guitick(");
     let uses_chat = out.contains("ain_chat(");
     let uses_browser = out.contains("ain_browser(");

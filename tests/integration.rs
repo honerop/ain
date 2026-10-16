@@ -493,3 +493,30 @@ fn structured_http_types_are_checked() {
     assert!(compile("print httprequest \"GET\" 9 record _").is_err());
     assert!(compile("print httprequest \"GET\" \"https://example.com\" false").is_err());
 }
+
+#[test]
+fn typed_maps_have_inferred_value_types_and_stable_keys() {
+    let source = r#"scores = mapset mapone "z" 9 "a" 3
+print scores
+print maplen scores
+print mapat scores "a" 0
+print mapat scores "missing" 42
+print maphas scores "z"
+print mapkeys scores
+print mapvalues scores
+print mapremove scores "z"
+words = mapset mapone "one" "alpha" "two" "beta"
+print mapat words "two" "missing"
+nested = mapone "children" listof 7
+print listat mapat nested "children" listof 0 0
+"#;
+    assert_eq!(execute(source), "{a:3,z:9}\n2\n3\n42\ntrue\n[a,z]\n[3,9]\n{a:3}\nbeta\n7\n");
+}
+#[test]
+fn typed_maps_reject_wrong_key_value_and_fallback_types() {
+    assert!(compile("print mapone 1 2").is_err());
+    assert!(compile("print mapset mapone \"a\" 2 \"b\" true").is_err());
+    assert!(compile("print mapat mapone \"a\" 2 \"a\" \"wrong\"").is_err());
+    assert!(compile("print maplen 3").is_err());
+    assert!(compile("print maphas mapone \"a\" 2 1").is_err());
+}

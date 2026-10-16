@@ -88,7 +88,7 @@ fn lower(checked: &Checked) -> Result<Module, CompileError> {
     Ok(Module {functions,items})
 }
 
-fn ty(t:&Ty) -> &'static str { match t {Ty::Int=>"i64",Ty::Bool=>"i1",Ty::Unit=>"i8",Ty::Str=>"ptr",Ty::Data|Ty::Cell|Ty::Task|Ty::List(_)|Ty::Option(_)|Ty::Result(_)=>unreachable!("Structured types are not supported by AIR/LLVM"),Ty::Var(_)=>unreachable!("types must be resolved") } }
+fn ty(t:&Ty) -> &'static str { match t {Ty::Int=>"i64",Ty::Bool=>"i1",Ty::Unit=>"i8",Ty::Str=>"ptr",Ty::Data|Ty::Cell|Ty::Task|Ty::List(_)|Ty::Map(_)|Ty::Option(_)|Ty::Result(_)=>unreachable!("Structured types are not supported by AIR/LLVM"),Ty::Var(_)=>unreachable!("types must be resolved") } }
 fn air_node(n:&Node) -> String {
     match &n.kind {
         Kind::Int(v) => format!("{v}:i64"), Kind::Bool(v) => format!("{v}:bool"), Kind::Unit => "_:unit".into(),
