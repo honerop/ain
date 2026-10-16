@@ -79,10 +79,99 @@ fn ain_ai_codex(model: &str, prompt: &str) -> Result<String, String> {
     }
     result.map_err(|e| format!("Codex did not produce a reply: {e}"))
 }
+// Free-provider integration through the official OpenCode CLI. Ain programs
+// contain no OpenCode-specific application language or shell scripts.
+// OpenCode's free model offering may change, and may impose usage limits.
+fn ain_ai_opencode(model: &str, prompt: &str) -> Result<String, String> {
+    let selected = if model.is_empty() { "opencode/mimo-v2.6-flash-free" } else { model };
+    ain_ai_model(selected)?;
+    if prompt.len() > 128 * 1024 { return Err("OpenCode prompt exceeds 128 KiB".into()); }
+    let binary = std::env::var("AIN_OPENCODE_BIN").unwrap_or_else(|_| "opencode".into());
+    let mut cmd = Command::new(binary);
+    // The plan agent is the least-authority default. Workspaces and edits
+    // remain explicit Ainex operations; this is NOT a sandbox guarantee.
+    cmd.args(["run", "--model", selected, "--format", "json", "--agent", "plan", "--"])
+        .arg(prompt);
+    // Use regular files to avoid pipe-buffer deadlocks while the CLI thinks.
+    let prefix = std::env::temp_dir().join(format!("ain-opencode-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos()));
+    let out_path = prefix.with_extension("out");
+    let err_path = prefix.with_extension("err");
+    struct Cleanup(std::path::PathBuf, std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+            let _ = std::fs::remove_file(&self.1);
+        }
+    }
+    let _clean = Cleanup(out_path.clone(),err_path.clone());
+    let out = std::fs::OpenOptions::new().write(true).create_new(true)
+        .open(&out_path).map_err(|e| e.to_string())?;
+    let err = std::fs::OpenOptions::new().write(true).create_new(true)
+        .open(&err_path).map_err(|e| e.to_string())?;
+    let mut child = cmd.stdin(Stdio::null())
+        .stdout(Stdio::from(out)).stderr(Stdio::from(err))
+        .spawn().map_err(|e| format!("Cannot launch OpenCode CLI: {e}; install opencode"))?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
+    let status = loop {
+        match child.try_wait().map_err(|e| e.to_string())? {
+            Some(status) => break status,
+            None if std::time::Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("OpenCode timed out after 180 seconds".into());
+            },
+            None => std::thread::sleep(std::time::Duration::from_millis(50)),
+        }
+    };
+    let stdout = std::fs::read(&out_path).map_err(|e| e.to_string())?;
+    let stderr = std::fs::read(&err_path).map_err(|e| e.to_string())?;
+    if stdout.len() > 8*1024*1024 || stderr.len() > 256*1024 {
+        return Err("OpenCode response exceeds allowed size".into());
+    }
+    let err_text = String::from_utf8_lossy(&stderr);
+    if !status.success() {
+        return Err(format!("OpenCode failed: {}",err_text.chars().take(600).collect::<String>()));
+    }
+    let lines = String::from_utf8(stdout).map_err(|_| "OpenCode JSONL is not UTF-8")?;
+    let mut answer = String::new();
+    let mut provider_error = None;
+    for line in lines.lines().filter(|line| !line.trim().is_empty()) {
+        // Some CLI versions emit status/noise outside JSON. Treat only JSON
+        // event records as authoritative; malformed JSON-like events fail.
+        if !line.trim_start().starts_with('{') { continue; }
+        let value = ain_json_parse(line.into())
+            .map_err(|e| format!("Invalid OpenCode JSON event: {e}"))?;
+        let AinData::Object(fields) = value else { continue };
+        match fields.get("type") {
+            Some(AinData::Text(kind)) if kind == "text" => {
+                if let Some(AinData::Object(part)) = fields.get("part") {
+                    if let Some(AinData::Text(text)) = part.get("text") {
+                        answer.push_str(text);
+                    }
+                }
+            },
+            Some(AinData::Text(kind)) if kind == "error" => {
+                provider_error = Some(line.chars().take(600).collect::<String>());
+            },
+            _ => {}
+        }
+        if answer.len() > 512*1024 {
+            return Err("OpenCode answer exceeds 512 KiB".into());
+        }
+    }
+    if let Some(error) = provider_error { return Err(format!("OpenCode response error: {error}")); }
+    if answer.trim().is_empty() { return Err("OpenCode produced no text response".into()); }
+    Ok(answer)
+}
+
 fn ain_chat(provider: String, model: String, prompt: String) -> String {
     let result = match provider.as_str() {
         "deepinfra" => ain_ai_deepinfra(&model, &prompt),
         "chatgpt" | "codex" => ain_ai_codex(&model, &prompt),
+        "openbot" | "opencode" => ain_ai_opencode(&model, &prompt),
         _ => Err(format!("Unknown AI provider: {}", provider)),
     };
     result.unwrap_or_else(|error| format!("Provider error: {error}"))
