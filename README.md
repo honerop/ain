@@ -52,6 +52,16 @@ See [the effects and tasks guide](docs/effects-tasks.md). Builtin permissions
 are not an OS-level sandbox. More extensive networking, concurrency, database,
 and multimedia APIs are planned, not yet complete.
 
+## Serialization and structured storage
+
+The native backend includes experimental prepared SQLite queries, CSV
+parsing/writing, byte conversions, Base64, and optional zlib compression.
+See the [SQLite guide](docs/sqlite.md) and
+[serialization guide](docs/serialization.md).
+
+These are incremental pieces of the proposed batteries-included library,
+not evidence that all database engines, file formats, or multimedia APIs work.
+
 ## A first look
 
 ```text

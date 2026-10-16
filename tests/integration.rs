@@ -304,3 +304,55 @@ fn sqlite_type_checks() {
     assert!(compile("print sqlexec \"a.db\" \"select 1\" true").is_err());
     assert!(compile("print sqlquery \"a.db\" \"select 1\" array _").is_ok());
 }
+
+
+#[test]
+fn csv_quoted_records_unicode_and_roundtrip() {
+    let source = r#"rows = csvparse "name,quote\r\nAda,\"Hello, \"\"world\"\"\"\r\nLéa,\"two\nlines\""
+print encode rows
+print csvwrite rows
+"#;
+    assert_eq!(execute(source),
+        "[[\"name\",\"quote\"],[\"Ada\",\"Hello, \\\"world\\\"\"],[\"Léa\",\"two\\nlines\"]]\nname,quote\r\nAda,\"Hello, \"\"world\"\"\"\r\nLéa,\"two\nlines\"\n");
+}
+#[test]
+fn csv_recoverable_malformed_input() {
+    let source = r#"bad = trycsv "name,\"unterminated"
+print asbool field bad "ok"
+print astext field bad "error"
+"#;
+    assert_eq!(execute(source), "false\nUnterminated quoted CSV field\n");
+}
+#[test]
+fn base64_utf8_bytes_and_corruption() {
+    let source = r#"payload = utf8bytes "Hello 😀"
+encoded = b64encode payload
+print encoded
+decoded = b64decode encoded
+text = frombytes field decoded "value"
+print astext field text "value"
+invalid = b64decode "Zm9="
+print asbool field invalid "ok"
+"#;
+    assert_eq!(execute(source), "SGVsbG8g8J+YgA==\nHello 😀\nfalse\n");
+}
+#[test]
+fn binary_deflate_roundtrip_and_rejects_corruption() {
+    let source = r#"raw = utf8bytes "Ain data compresses into bytes"
+packed = zpack raw
+result = zunpack packed
+text = frombytes field result "value"
+print asbool field result "ok"
+print astext field text "value"
+invalid = zunpack utf8bytes "invalid"
+print asbool field invalid "ok"
+"#;
+    assert_eq!(execute(source), "true\nAin data compresses into bytes\nfalse\n");
+}
+#[test]
+fn serialization_type_checks() {
+    assert!(compile("print csvparse 42").is_err());
+    assert!(compile("print csvwrite true").is_err());
+    assert!(compile("print zpack false").is_err());
+    assert!(compile("print frombytes boxstr \"not a list\"").is_ok());
+}
