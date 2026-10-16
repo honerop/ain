@@ -114,7 +114,27 @@ static V v_replace(V a,V b,V c){const char *s=v_s(a),*old=v_s(b),*newtext=v_s(c)
 /* Run a program with a single literal argument. No shell interpolation. */
 #include <unistd.h>
 #include <sys/wait.h>
+static void v_allow(const char *capability) {
+ const char *restricted=getenv("AIN_RESTRICTED");
+ if (!restricted || strcmp(restricted,"1")) return;
+ const char *allowed=getenv("AIN_PERMISSIONS");
+ if (!allowed) v_fail("capability denied");
+ size_t n=strlen(capability);
+ const char *p=allowed;
+ while (*p) {
+  while (*p==',' || *p==' ') p++;
+  const char *end=p;
+  while (*end && *end!=',') end++;
+  const char *trim=end;
+  while (trim>p && trim[-1]==' ') trim--;
+  if (((size_t)(trim-p)==n && !strncmp(p,capability,n)) ||
+      ((size_t)(trim-p)==3 && !strncmp(p,"all",3))) return;
+  p=*end ? end+1 : end;
+ }
+ v_fail("capability denied");
+}
 static V v_run(V command,V argument) {
+ v_allow("process");
  const char *exe=v_s(command),*arg=v_s(argument);
  pid_t pid=fork();
  if(pid<0) v_fail("fork failed");
