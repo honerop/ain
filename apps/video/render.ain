@@ -1,0 +1,46 @@
+# JSON-to-video frame renderer in Ain (native Rust backend).
+# Environment: AIN_VIDEO_SPEC and AIN_VIDEO_FRAMES.
+# A small Python wrapper handles validation, SVG rasterization, and FFmpeg.
+# All scene sequencing, keyframe interpolation, and frame layout happen here.
+
+intor obj key fallback = if hasfield obj key asint field obj key fallback
+textor obj key fallback = if hasfield obj key astext field obj key fallback
+objector obj key = if hasfield obj key field obj key record _
+span scene fps = if hasfield scene "frames" intor scene "frames" 1 * intor scene "duration" 1 fps
+total scenes fps index = if >= index size scenes 0 + span get scenes index fps total scenes fps + index 1
+
+# Find both the scene and the frame within that scene.
+locate scenes fps time index = if < time span get scenes index fps put put record _ "scene" get scenes index "time" boxint time locate scenes fps - time span get scenes index fps + index 1
+
+# Integer fixed-point (0..1000) avoids requiring floating-point primitives.
+position time frames = / * time 1000 max 1 - frames 1
+smooth value = / * * value value - 3000 * 2 value 1000000
+ease shape time frames = if == textor shape "ease" "linear" "smooth" smooth position time frames position time frames
+start shape key = intor objector shape "from" key intor shape key 0
+finish shape key = intor objector shape "to" key intor shape key 0
+animated shape key time frames = + start shape key / * - finish shape key start shape key ease shape time frames 1000
+
+# The exporter ignores metadata and shape fields it does not use.
+# Keep the native SVG exporter responsible for XML escaping and validation.
+transform shape time frames = put put put put put put put put put put put shape "x" boxint animated shape "x" time frames "y" boxint animated shape "y" time frames "width" boxint animated shape "width" time frames "height" boxint animated shape "height" time frames "cx" boxint animated shape "cx" time frames "cy" boxint animated shape "cy" time frames "r" boxint animated shape "r" time frames "x1" boxint animated shape "x1" time frames "y1" boxint animated shape "y1" time frames "x2" boxint animated shape "x2" time frames "y2" boxint animated shape "y2" time frames
+
+collect elements time frames index output = if >= index size elements output collect elements time frames + index 1 push output transform get elements index time frames
+background project scene = put put put put put put record _ "kind" boxstr "rect" "x" boxint 0 "y" boxint 0 "width" field project "width" "height" field project "height" "fill" boxstr textor scene "background" "#101825"
+frame_scene project found = put put put record _ "width" field project "width" "height" field project "height" "shapes" collect field field found "scene" "elements" asint field found "time" span field found "scene" intor project "fps" 24 0 push array _ background project field found "scene"
+scene_at state = locate field field state "project" "scenes" asint field state "fps" asint field state "index" 0
+
+# Frame numbers are zero-padded for FFmpeg image sequence ingestion.
+pad frame = if < frame 10 concat "00000" str frame if < frame 100 concat "0000" str frame if < frame 1000 concat "000" str frame if < frame 10000 concat "00" str frame if < frame 100000 concat "0" str frame str frame
+frame_path state = pathjoin astext field state "directory" concat concat "frame_" pad asint field state "index" ".svg"
+export_frame state = svgwrite frame_path state frame_scene field state "project" scene_at state
+advance state result = if asbool field result "ok" put state "index" boxint + asint field state "index" 1 put put state "ok" boxbool false "error" field result "error"
+step state = if asbool field state "ok" advance state export_frame state state
+
+spec = json fsread environ "AIN_VIDEO_SPEC"
+directory = environ "AIN_VIDEO_FRAMES"
+fps = intor spec "fps" 24
+frames = total field spec "scenes" fps 0
+folder_result = fsmkdir directory
+initial = put put put put put put record _ "project" spec "directory" boxstr directory "fps" boxint fps "index" boxint 0 "ok" field folder_result "ok" "error" field folder_result "error"
+completed = iterate "step" frames initial
+print encode put put put record _ "ok" field completed "ok" "frames" field completed "index" "error" field completed "error"
