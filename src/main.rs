@@ -21,8 +21,29 @@ fn json_string(s: &str) -> String {
     escaped.push('"');
     escaped
 }
+// Stable coarse-grained diagnostic categories for machine-generated repairs.
+// Source line is authoritative; column spans are not yet tracked by the parser.
+fn diagnostic_class(message: &str) -> (&'static str, &'static str) {
+    if message.contains("type mismatch") {
+        ("E_TYPE", "Check the expected argument and return types")
+    } else if message.contains("unknown variable") {
+        ("E_UNKNOWN_VARIABLE", "Define this name before using it, or correct its spelling")
+    } else if message.contains("unknown function") {
+        ("E_UNKNOWN_FUNCTION", "Use a declared function or supported builtin")
+    } else if message.contains("cannot infer type") {
+        ("E_INFERENCE", "Provide a typed expression or use the value in a typed operation")
+    } else if message.contains("expected expression") {
+        ("E_EXPRESSION", "Provide all arguments required by the prefix expression")
+    } else if message.contains("unterminated") {
+        ("E_UNTERMINATED", "Close the string or expression delimiter")
+    } else if message.contains("already defined") || message.contains("duplicate") {
+        ("E_DUPLICATE", "Rename the duplicate binding or remove the second declaration")
+    } else {
+        ("E_COMPILER", "Inspect the reported line and follow the compiler message")
+    }
+}
 fn usage() {
-    eprintln!("AIN compiler 0.3.0\nUsage:\n  ainc check <file.ain>\n  ainc fmt <file.ain> [-o output.ain]\n  ainc fmt-check <file.ain>\n  ainc check-json <file.ain>\n  ainc air <file.ain> [-o file.air]\n  ainc llvm <file.ain> [-o file.ll]\n  ainc build-llvm <file.ain> [-o executable]\n  ainc run-llvm <file.ain>\n  ainc transpile <file.ain> [-o file.rs]\n  ainc build <file.ain> [-o executable]\n  ainc run <file.ain>\n  ainc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
+    eprintln!("AIN compiler 0.3.0\nUsage:\n  ainc check <file.ain>\n  ainc fmt <file.ain> [-o output.ain]\n  ainc fmt-check <file.ain>\n  ainc check-json <file.ain>\n  ainc air <file.ain> [-o file.air]\n  ainc llvm <file.ain> [-o file.ll]\n  ainc build-llvm <file.ain> [-o executable]\n  ainc run-llvm <file.ain>\n  ainc transpile <file.ain> [-o file.rs]\n  ainc build <file.ain> [-o executable]\n  ainc run <file.ain>\n  ainc run-checked <file.ain>  # builtins default-deny unless AIN_PERMISSIONS is set\n  ainc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
 }
 fn rustc(rust: &Path, binary: &Path) -> Result<(), String> {
     let mut cmd = Command::new("rustc");
@@ -68,10 +89,10 @@ fn run() -> Result<(), String> {
     let output = if args.len() == 4 && args[2] == "-o" { Some(PathBuf::from(&args[3])) }
         else if args.len() == 2 { None }
         else { usage(); return Err("invalid arguments".into()); };
-    if !matches!(action.as_str(), "check"|"fmt"|"fmt-check"|"check-json"|"air"|"llvm"|"build-llvm"|"run-llvm"|"transpile"|"build"|"run") {
+    if !matches!(action.as_str(), "check"|"fmt"|"fmt-check"|"check-json"|"air"|"llvm"|"build-llvm"|"run-llvm"|"transpile"|"build"|"run"|"run-checked") {
         usage(); return Err(format!("unknown command '{action}'"));
     }
-    if output.is_some() && matches!(action.as_str(), "check"|"fmt-check"|"check-json"|"run"|"run-llvm") { return Err(format!("{action} doesn't accept -o")); }
+    if output.is_some() && matches!(action.as_str(), "check"|"fmt-check"|"check-json"|"run"|"run-checked"|"run-llvm") { return Err(format!("{action} doesn't accept -o")); }
     let source = fs::read_to_string(source_file).map_err(|e| format!("{}: {e}", source_file.display()))?;
     if action == "fmt" {
         let formatted = format_source(&source).map_err(|e| e.to_string())?;
@@ -94,8 +115,9 @@ fn run() -> Result<(), String> {
                 return Ok(());
             }
             Err(e) => {
-                println!("{{\"ok\":false,\"diagnostics\":[{{\"severity\":\"error\",\"line\":{},\"message\":{}}}]}}",
-                    e.line, json_string(&e.message));
+                let (code, hint) = diagnostic_class(&e.message);
+                println!("{{\"ok\":false,\"diagnostics\":[{{\"severity\":\"error\",\"code\":{},\"line\":{},\"message\":{},\"hint\":{}}}]}}",
+                    json_string(code),e.line,json_string(&e.message),json_string(hint));
                 return Err("AIN source has compilation errors".into());
             }
         }
@@ -120,7 +142,13 @@ fn run() -> Result<(), String> {
         fs::write(&source, code).map_err(|e| e.to_string())?;
         if llvm {clang(&source,&binary)?;} else {rustc(&source,&binary)?;}
         if matches!(action.as_str(), "build-llvm"|"build") {println!("built {}", binary.display());return Ok(());}
-        let status=Command::new(&binary).status().map_err(|e| e.to_string())?;
+        let mut command=Command::new(&binary);
+        if action == "run-checked" {
+            command.env("AIN_RESTRICTED","1");
+            // AIN_PERMISSIONS remains explicitly controlled by the caller.
+            // Builtin checks are not an operating-system sandbox.
+        }
+        let status=command.status().map_err(|e| e.to_string())?;
         if !status.success() {return Err(format!("program exited with status: {status}"));}
         Ok(())
     })();

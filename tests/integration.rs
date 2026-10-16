@@ -854,3 +854,46 @@ fn extended_filesystem_types_are_checked() {
     assert!(compile("print processrun 123 array _").is_err());
     assert!(compile("print workingdir _").is_ok());
 }
+
+
+#[test]
+fn check_json_reports_stable_error_categories_and_hints() {
+    let dir=std::env::temp_dir().join(format!("ain-ai-diag-{}-{}",
+        std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+    fs::create_dir_all(&dir).unwrap();
+    let file=dir.join("bad.ain");
+    fs::write(&file,"print + true 3\n").unwrap();
+    let bin=env!("CARGO_BIN_EXE_ainc");
+    let output=Command::new(bin).arg("check-json").arg(&file).output().unwrap();
+    assert!(!output.status.success());
+    let json=String::from_utf8(output.stdout).unwrap();
+    assert!(json.contains(r#""code":"E_TYPE""#),"{json}");
+    assert!(json.contains(r#""hint":"Check the expected argument and return types""#),"{json}");
+    assert!(json.contains(r#""line":1"#));
+    fs::write(&file,"print not_defined\n").unwrap();
+    let output=Command::new(bin).arg("check-json").arg(&file).output().unwrap();
+    let json=String::from_utf8(output.stdout).unwrap();
+    assert!(!output.status.success());
+    assert!(json.contains(r#""code":"E_UNKNOWN_VARIABLE""#),"{json}");
+    fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn checked_run_defaults_to_denied_builtins_and_accepts_explicit_grants() {
+    let dir=std::env::temp_dir().join(format!("ain-checked-cli-{}-{}",
+        std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+    fs::create_dir_all(&dir).unwrap();
+    let file=dir.join("program.ain");
+    let input=dir.join("input.txt");
+    fs::write(&input,"restricted read works").unwrap();
+    fs::write(&file,format!("print fsread {:?}\n",input.to_string_lossy())).unwrap();
+    let bin=env!("CARGO_BIN_EXE_ainc");
+    let denied=Command::new(bin).arg("run-checked").arg(&file)
+        .env_remove("AIN_PERMISSIONS").output().unwrap();
+    assert!(!denied.status.success(),"checked run must default to deny");
+    assert!(String::from_utf8_lossy(&denied.stderr).contains("capability denied"));
+    let allowed=Command::new(bin).arg("run-checked").arg(&file)
+        .env("AIN_PERMISSIONS","read").output().unwrap();
+    assert!(allowed.status.success(),"{}",String::from_utf8_lossy(&allowed.stderr));
+    assert_eq!(String::from_utf8(allowed.stdout).unwrap(),"restricted read works\n");
+    fs::remove_dir_all(dir).unwrap();
+}
