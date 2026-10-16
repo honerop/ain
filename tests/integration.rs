@@ -833,15 +833,15 @@ print asbool field workingdir _ "ok"
 }
 #[test]
 fn process_arguments_are_arrays_not_shell_commands() {
-    let code = r#"argv = push push array _ boxstr "Hello %s" boxstr "Ain"
-reply = processrun "printf" argv
+    let code = r#"print_args = push push array _ boxstr "Hello %s" boxstr "Ain"
+reply = processrun "printf" print_args
 print asbool field reply "ok"
 print asint field field reply "value" "code"
 print astext field field reply "value" "stdout"
 "#;
     assert_eq!(execute(code),"true\n0\nHello Ain\n");
-    let invalid = r#"argv = push array _ boxint 12
-reply = processrun "printf" argv
+    let invalid = r#"print_args = push array _ boxint 12
+reply = processrun "printf" print_args
 print asbool field reply "ok"
 "#;
     assert_eq!(execute(invalid),"false\n");
