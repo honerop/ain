@@ -21,5 +21,10 @@ jobs:
       - name: Smoke test nonblocking GTK4 event loop in Ain
         run: |
           cargo run --quiet -- build examples/gui_tick.ain -o /tmp/ain-gui-tick
-          result=$(timeout 15s xvfb-run -a dbus-run-session /tmp/ain-gui-tick)
-          test "$result" = "tick"
+          set +e
+          timeout 15s xvfb-run -a dbus-run-session /tmp/ain-gui-tick > /tmp/ain-gui.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/ain-gui.log
+          test "$code" -eq 0
+          grep -x 'tick' /tmp/ain-gui.log
