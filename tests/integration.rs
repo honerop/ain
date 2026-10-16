@@ -984,3 +984,13 @@ fn opencode_provider_rejects_invalid_model_and_missing_executable() {
     let _=fs::remove_file(rs);
     let _=fs::remove_file(exe);
 }
+
+#[test]
+fn browser_only_program_links_json_runtime_with_opencode_provider() {
+    let code = compile("print browser \"selftest\" \"\"\n").unwrap().rust;
+    assert!(code.contains("enum AinData"), "browser includes its dependent AI/JSON runtime");
+    assert!(code.contains("fn ain_json_parse("));
+    assert!(code.contains("fn ain_ai_opencode("));
+    let no_browser = compile("print 42\n").unwrap().rust;
+    assert!(!no_browser.contains("enum AinData"), "tiny programs do not link JSON runtime");
+}
