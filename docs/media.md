@@ -64,3 +64,6 @@ in Ain. Its timeline engine uses `svgwrite` frame-by-frame; librsvg and
 FFmpeg provide rasterization and MP4 encoding. The SVG exporter additionally
 supports diagram lines (`x1,y1,x2,y2,stroke,stroke_width`) and text properties
 (`font_size` and `anchor` set to `start`, `middle` or `end`).
+Local PNG and JPEG images can be embedded as validated data URIs by the
+video generator, using `image` shapes with `x`, `y`, `width`, `height` and
+`data`. External URLs are deliberately unsupported.
