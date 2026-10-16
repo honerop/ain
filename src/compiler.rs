@@ -145,9 +145,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
         "ffi2" => 4,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0" => 2,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2" => 2,
         "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite" => 1,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap" => 1,
         _ => return None,
     })
 }
@@ -233,7 +233,7 @@ fn parse(source: &str) -> Result<Program, CompileError> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Map(Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
+enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Map(Box<Ty>), Tuple(Box<Ty>, Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
 impl Ty {
     fn rust(&self) -> String {
         match self {
@@ -242,6 +242,7 @@ impl Ty {
             Ty::Cell => "AinCell".into(), Ty::Task => "AinTask".into(),
             Ty::List(inner) => format!("Vec<{}>", inner.rust()),
             Ty::Map(inner) => format!("std::collections::BTreeMap<String, {}>", inner.rust()),
+            Ty::Tuple(first, second) => format!("({}, {})", first.rust(), second.rust()),
             Ty::Option(inner) => format!("Option<{}>", inner.rust()),
             Ty::Result(inner) => format!("Result<{}, String>", inner.rust()),
             Ty::Unit => "()".into(), Ty::Var(_) => unreachable!("unresolved type"),
@@ -262,6 +263,7 @@ impl Types {
             }
             Ty::List(inner) => Ty::List(Box::new(self.resolve(*inner))),
             Ty::Map(inner) => Ty::Map(Box::new(self.resolve(*inner))),
+            Ty::Tuple(first,second) => Ty::Tuple(Box::new(self.resolve(*first)),Box::new(self.resolve(*second))),
             Ty::Option(inner) => Ty::Option(Box::new(self.resolve(*inner))),
             Ty::Result(inner) => Ty::Result(Box::new(self.resolve(*inner))),
             t => t,
@@ -271,6 +273,7 @@ impl Types {
         match self.resolve(ty) {
             Ty::Var(j) => id == j,
             Ty::List(inner) | Ty::Map(inner) | Ty::Option(inner) | Ty::Result(inner) => self.occurs(id, *inner),
+            Ty::Tuple(a,b) => self.occurs(id,*a) || self.occurs(id,*b),
             _ => false,
         }
     }
@@ -278,6 +281,7 @@ impl Types {
         match ty {
             Ty::Var(_) => true,
             Ty::List(inner) | Ty::Map(inner) | Ty::Option(inner) | Ty::Result(inner) => Self::unresolved(inner),
+            Ty::Tuple(a,b) => Self::unresolved(a) || Self::unresolved(b),
             _ => false,
         }
     }
@@ -289,6 +293,9 @@ impl Types {
             (Ty::Var(i), t) | (t, Ty::Var(i)) => {
                 if self.occurs(i, t.clone()) { return Err(err(line, "recursive list type is not supported")); }
                 self.substitutions[i] = Some(t); Ok(())
+            },
+            (Ty::Tuple(a,b),Ty::Tuple(c,d)) => {
+                self.unify(*a,*c,line)?; self.unify(*b,*d,line)
             },
             (Ty::List(a), Ty::List(b)) | (Ty::Map(a), Ty::Map(b)) | (Ty::Option(a), Ty::Option(b)) |
                 (Ty::Result(a), Ty::Result(b)) => self.unify(*a, *b, line),
@@ -383,6 +390,16 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "tuple2" => Ty::Tuple(Box::new(actual[0].clone()),Box::new(actual[1].clone())),
+                "tuplefst"|"tuplesnd"|"tupleswap" => {
+                    let a=types.fresh(); let b=types.fresh();
+                    types.unify(actual[0].clone(),Ty::Tuple(Box::new(a.clone()),Box::new(b.clone())),line)?;
+                    match name.as_str() {
+                        "tuplefst" => a,
+                        "tuplesnd" => b,
+                        _ => Ty::Tuple(Box::new(b),Box::new(a))
+                    }
+                },
                 "tomlparse" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
                 "tomlwrite" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
                 "ffi0"|"ffi1"|"ffi2" => {
@@ -540,7 +557,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
         Expr::Unit => "()".into(),
         Expr::Var(w) => {
             let ty = local.get(w).or_else(|| global.get(w)).expect("checked variable");
-            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
+            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Tuple(_,_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
         }
         Expr::Call(name, args) => {
             if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
@@ -580,6 +597,10 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "tuple2" => format!("({}, {})",a[0],a[1]),
+                "tuplefst" => format!("({}).0",a[0]),
+                "tuplesnd" => format!("({}).1",a[0]),
+                "tupleswap" => format!("{{ let (first,second) = {}; (second,first) }}",a[0]),
                 "tomlparse" => format!("ain_tomlparse({})", a[0]),
                 "tomlwrite" => format!("ain_tomlwrite({})", a[0]),
                 "ffi0" => format!("ain_ffi0({}, {})", a[0], a[1]),
@@ -701,6 +722,7 @@ fn emit(checked: &Checked) -> String {
     out.push_str("impl AinText for String { fn ain_text(&self) -> String { self.clone() } }\n");
     out.push_str("impl AinText for () { fn ain_text(&self) -> String { \"()\".to_string() } }\n");
     out.push_str("impl<T: AinText> AinText for Vec<T> { fn ain_text(&self) -> String { format!(\"[{}]\", self.iter().map(|x| x.ain_text()).collect::<Vec<_>>().join(\",\")) } }\n");
+    out.push_str("impl<A:AinText,B:AinText> AinText for (A,B) { fn ain_text(&self) -> String { format!(\"({}, {})\",self.0.ain_text(),self.1.ain_text()) } }\n");
     out.push_str("impl<T: AinText> AinText for std::collections::BTreeMap<String,T> { fn ain_text(&self) -> String { format!(\"{{{}}}\", self.iter().map(|(k,v)| format!(\"{}:{}\", k, v.ain_text())).collect::<Vec<_>>().join(\",\")) } }\n");
     out.push_str("impl<T: AinText> AinText for Option<T> { fn ain_text(&self) -> String { match self { Some(v) => format!(\"some({})\",v.ain_text()), None => \"none\".into() } } }\n");
     out.push_str("impl<T: AinText> AinText for Result<T,String> { fn ain_text(&self) -> String { match self { Ok(v) => format!(\"ok({})\",v.ain_text()), Err(e) => format!(\"err({})\",e) } } }\n");

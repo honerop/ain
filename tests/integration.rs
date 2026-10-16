@@ -775,3 +775,26 @@ fn formatter_rejects_invalid_source() {
     assert!(format_source("print + 1\n").is_err());
     assert!(format_source("print \"unterminated").is_err());
 }
+
+#[test]
+fn native_tuples_preserve_distinct_static_types() {
+    let source = r#"person = tuple2 "Ada" 17
+print tuplefst person
+print tuplesnd person
+print person
+reversed = tupleswap person
+print tuplefst reversed
+nested = tuple2 tuple2 5 true "x"
+print tuplefst tuplefst nested
+print tuplesnd tuplefst nested
+"#;
+    assert_eq!(execute(source),"Ada\n17\n(Ada, 17)\n17\n5\ntrue\n");
+}
+#[test]
+fn tuple_types_are_inferred_and_wrong_types_rejected() {
+    assert!(compile("print tuplefst tuple2 3 true").is_ok());
+    assert!(compile("print tuplefst 4").is_err());
+    assert!(compile("print + tuplefst tuple2 \"wrong\" 4 2").is_err());
+    assert!(compile("print tuplefst tuple2 true 17").is_ok());
+    assert!(compile("print tuplefst tuple2 1 tuple2 true \"x\"").is_ok());
+}
