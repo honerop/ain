@@ -12,6 +12,10 @@ use std::ptr;
 #[link(name = "gtk-4")]
 unsafe extern "C" {
     fn gtk_init();
+    fn gtk_css_provider_new() -> *mut c_void;
+    fn gtk_css_provider_load_from_data(provider: *mut c_void, data: *const c_char, length: isize);
+    fn gtk_style_context_add_provider_for_display(display: *mut c_void, provider: *mut c_void, priority: u32);
+    fn gdk_display_get_default() -> *mut c_void;
     fn gtk_window_new() -> *mut c_void;
     fn gtk_window_set_title(window: *mut c_void, title: *const c_char);
     fn gtk_window_set_default_size(window: *mut c_void, width: i32, height: i32);
@@ -70,6 +74,20 @@ unsafe extern "C" {
     fn g_main_context_iteration(context: *mut c_void, block: i32) -> i32;
 }
 
+
+const AIN_CYAN_CSS: &str = r#"
+.ain-theme-cyan { background: #0e1620; color: #deebf1; }
+.ain-theme-cyan .ain-header { font-size: 28px; font-weight: 700; color: #c8f7ff; }
+.ain-theme-cyan .ain-subtitle { color: #8fa8b9; font-size: 12px; }
+.ain-theme-cyan .ain-transcript-frame { background: #16222e; border: 1px solid #2c3d49; border-radius: 14px; }
+.ain-theme-cyan .ain-transcript, .ain-theme-cyan .ain-transcript text {
+    background: #16222e; color: #e0edf5; font-size: 14px;
+}
+.ain-theme-cyan .ain-transcript { padding: 16px; }
+.ain-theme-cyan .ain-composer { min-height: 42px; border-radius: 10px; font-size: 14px; }
+.ain-theme-cyan .ain-primary { background: #33cadd; color: #091923; font-weight: 700; }
+.ain-theme-cyan .ain-provider { border-radius: 9px; }
+"#;
 struct AinGui {
     window: *mut c_void,
     event: Option<String>,
@@ -78,6 +96,7 @@ struct AinGui {
     transcript: *mut c_void,
     last_g: bool,
     vim: bool,
+    insert_mode: bool,
 }
 struct AinGuiButton {
     gui: *mut AinGui,
@@ -109,22 +128,37 @@ unsafe extern "C" fn ain_gui_close(_window: *mut c_void, data: *mut c_void) -> i
     (*(data as *mut AinGui)).event = Some("quit\n".into());
     1 // Defer GTK destruction until application code handles quit.
 }
+// A modal key handler must use mode, not a transient focus check, to decide
+// whether printable characters belong to the editor. GTK runs this controller
+// in the capture phase, before the entry handles the same event.
 unsafe extern "C" fn ain_gui_key(_controller: *mut c_void, key: u32,
-        _hardware: u32, _modifiers: u32, data: *mut c_void) -> i32 {
+        _hardware: u32, modifiers: u32, data: *mut c_void) -> i32 {
     let gui = &mut *(data as *mut AinGui);
     if !gui.vim { return 0; }
-    if key == 0xff1b { // Escape
-        if !gui.transcript.is_null() { gtk_widget_grab_focus(gui.transcript); }
+
+    // Clicking the entry is another way to enter insert mode.
+    if !gui.entry.is_null() && gtk_widget_has_focus(gui.entry) != 0 {
+        gui.insert_mode = true;
+    }
+    if key == 0xff1b { // Escape always returns to normal mode.
+        gui.insert_mode = false;
         gui.last_g = false;
+        if !gui.transcript.is_null() { gtk_widget_grab_focus(gui.transcript); }
         return 1;
     }
-    if !gui.entry.is_null() && gtk_widget_has_focus(gui.entry) != 0 { return 0; }
+    // In insert mode the GTK editor gets *every* printable character,
+    // including i, j, k, g, G and ':'. No Vim shortcut runs here.
+    if gui.insert_mode { return 0; }
+    // Do not steal Ctrl/Alt/Super shortcuts from the window or desktop.
+    if modifiers & (4 | 8 | (1 << 26)) != 0 { return 0; }
     match key {
-        0x69 | 0x3a => {
+        0x69 | 0x3a => { // i or : enters the composer.
             if gui.entry.is_null() { return 0; }
             if key == 0x3a {
                 gtk_editable_set_text(gui.entry, ain_gui_c(":").as_ptr());
             }
+            gui.insert_mode = true;
+            gui.last_g = false;
             gtk_widget_grab_focus(gui.entry);
         }
         0x6a | 0x6b | 0x47 | 0x67 => {
@@ -147,12 +181,19 @@ unsafe extern "C" fn ain_gui_key(_controller: *mut c_void, key: u32,
 }
 unsafe fn ain_gui_create() -> *mut AinGui {
     gtk_init();
+    // Optional CSS classes only affect layouts that select the cyan theme.
+    let display = gdk_display_get_default();
+    if !display.is_null() {
+        let provider = gtk_css_provider_new();
+        gtk_css_provider_load_from_data(provider, ain_gui_c(AIN_CYAN_CSS).as_ptr(), -1);
+        gtk_style_context_add_provider_for_display(display, provider, 600);
+    }
     let window = gtk_window_new();
     assert!(!window.is_null(), "Could not create GTK window");
     gtk_window_set_default_size(window, 960, 700);
     let gui = Box::into_raw(Box::new(AinGui {
         window, event: None, entry: ptr::null_mut(), scroll: ptr::null_mut(),
-        transcript: ptr::null_mut(), last_g: false, vim: false,
+        transcript: ptr::null_mut(), last_g: false, vim: false, insert_mode: true,
     }));
     g_signal_connect_data(window, ain_gui_c("close-request").as_ptr(),
         ain_gui_close as *const c_void, gui.cast(), ptr::null(), 0);
@@ -169,8 +210,12 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
     (*gui).scroll = ptr::null_mut();
     (*gui).transcript = ptr::null_mut();
     (*gui).vim = false;
+    (*gui).insert_mode = true;
     (*gui).last_g = false;
     let root = gtk_box_new(1, 10);
+    if spec.lines().any(|line| line == "theme\tcyan") {
+        gtk_widget_add_css_class(root, ain_gui_c("ain-theme-cyan").as_ptr());
+    }
     for apply in [
         gtk_widget_set_margin_top as unsafe extern "C" fn(*mut c_void, i32),
         gtk_widget_set_margin_bottom, gtk_widget_set_margin_start, gtk_widget_set_margin_end
@@ -187,7 +232,12 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_label_set_xalign(label, 0.0);
                 gtk_label_set_wrap(label, 1);
                 gtk_widget_add_css_class(label, ain_gui_c(
-                    if kind == "header" { "title-2" } else { "dim-label" }).as_ptr());
+                    if kind == "header" { "ain-header" } else { "ain-subtitle" }).as_ptr());
+                if kind == "header" {
+                    gtk_widget_add_css_class(label, ain_gui_c("title-2").as_ptr());
+                } else {
+                    gtk_widget_add_css_class(label, ain_gui_c("dim-label").as_ptr());
+                }
                 gtk_box_append(root, label);
             }
             "log" => {
@@ -197,6 +247,8 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_text_view_set_cursor_visible(view, 0);
                 gtk_text_view_set_wrap_mode(view, 3);
                 gtk_widget_add_css_class(view, ain_gui_c("monospace").as_ptr());
+                gtk_widget_add_css_class(view, ain_gui_c("ain-transcript").as_ptr());
+                gtk_widget_add_css_class(scroll, ain_gui_c("ain-transcript-frame").as_ptr());
                 gtk_text_buffer_set_text(gtk_text_view_get_buffer(view), ain_gui_c(a).as_ptr(), -1);
                 gtk_scrolled_window_set_child(scroll, view);
                 gtk_widget_set_vexpand(scroll, 1);
@@ -208,6 +260,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
             "entry" => {
                 let entry = gtk_entry_new();
                 gtk_widget_set_hexpand(entry, 1);
+                gtk_widget_add_css_class(entry, ain_gui_c("ain-composer").as_ptr());
                 gtk_entry_set_placeholder_text(entry, ain_gui_c(b).as_ptr());
                 g_signal_connect_data(entry, ain_gui_c("activate").as_ptr(),
                     ain_gui_enter as *const c_void, gui.cast(), ptr::null(), 0);
@@ -218,6 +271,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 if a.len() > 64 || a.is_empty() { continue; }
                 let button = gtk_button_new_with_label(ain_gui_c(b).as_ptr());
                 if kind == "action" { gtk_widget_set_hexpand(button, 1); }
+                gtk_widget_add_css_class(button, ain_gui_c(if a == "send" { "ain-primary" } else { "ain-provider" }).as_ptr());
                 let action = Box::into_raw(Box::new(AinGuiButton { gui, id: a.to_string() }));
                 g_signal_connect_data(button, ain_gui_c("clicked").as_ptr(),
                     ain_gui_button_clicked as *const c_void, action.cast(), ain_gui_button_destroy as *const c_void, 0);
@@ -251,9 +305,9 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
     gtk_box_append(root, buttons);
     gtk_window_set_child((*gui).window, root);
     gtk_window_present((*gui).window);
-    if (*gui).vim && !(*gui).transcript.is_null() {
-        gtk_widget_grab_focus((*gui).transcript);
-    } else if !(*gui).entry.is_null() { gtk_widget_grab_focus((*gui).entry); }
+    // Start with a usable composer, even when Vim navigation is enabled.
+    // Esc explicitly moves to the read-only transcript for normal mode.
+    if !(*gui).entry.is_null() { gtk_widget_grab_focus((*gui).entry); }
 }
 fn ain_gui_instance() -> *mut AinGui {
     AIN_GUI.with(|cell| {
