@@ -165,6 +165,16 @@ argument arrays with captured output and errors. The operations are guarded
 by Ain's optional builtin permission checks, **not** by an OS sandbox.
 See the [filesystem and process guide](docs/fs-process.md).
 
+## AI-oriented diagnostics and effect checks
+
+`ainc check-json` emits machine-readable error categories and targeted
+repair hints; `ainc run-checked` defaults Ain **builtins** to denied effects,
+with explicit opt-in via `AIN_PERMISSIONS=read,network`, for example.
+
+These builtin checks are **not an OS sandbox** and do not protect against
+untrusted native FFI or permitted subprocesses. See the
+[AI tooling guide](docs/ai-tooling.md).
+
 ## A first look
 
 ```text
