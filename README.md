@@ -183,6 +183,13 @@ The standard library now includes typed text/list operations such as
 directly to efficient native operations and reject incompatible element
 types. See the [functional standard-library guide](docs/functional-stdlib.md).
 
+## Free OpenCode model provider
+
+`chat "openbot" "" PROMPT` or `chat "opencode" "" PROMPT` calls an
+installed OpenCode CLI with the free `opencode/mimo-v2.6-flash-free` model
+by default and parses its JSONL text events. OpenBot itself is a desktop
+workspace, not a model API. See [OpenCode integration](docs/opencode.md).
+
 ## A first look
 
 ```text
