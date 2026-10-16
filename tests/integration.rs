@@ -658,3 +658,42 @@ fn tcp_and_server_type_checks() {
     assert!(compile("print tcprequest 7 \"payload\"").is_err());
     assert!(compile("print httpserveonce \"port\" \"OK\"").is_err());
 }
+
+#[test]
+fn native_ffi_calls_typed_c_functions_with_0_to_2_arguments() {
+    let dir = std::env::temp_dir().join(format!("ain-ffi-{}-{}",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+    fs::create_dir_all(&dir).unwrap();
+    let cfile = dir.join("library.c");
+    let shared = dir.join("library.so");
+    fs::write(&cfile,
+        "long long answer(void){return 42;}\nlong long twice(long long x){return x*2;}\nlong long sum(long long a,long long b){return a+b;}\n").unwrap();
+    let compile_shared = Command::new("cc").args(["-shared","-fPIC"])
+        .arg(&cfile).arg("-o").arg(&shared).output().unwrap();
+    assert!(compile_shared.status.success(), "{}", String::from_utf8_lossy(&compile_shared.stderr));
+    let path = shared.to_string_lossy();
+    let source = format!(r#"p = {path:?}
+a = ffi0 p "answer"
+b = ffi1 p "twice" 21
+c = ffi2 p "sum" 19 23
+print asbool field a "ok"
+print asint field a "value"
+print asint field b "value"
+print asint field c "value"
+bad = ffi0 p "missing_symbol"
+print asbool field bad "ok"
+"#);
+    assert_eq!(execute(&source), "true\n42\n42\n42\nfalse\n");
+    fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn ffi_missing_library_and_bad_type_returns_errors() {
+    let source = r#"call = ffi0 "/nonexistent/ain-library-does-not-exist.so" "answer"
+print asbool field call "ok"
+"#;
+    assert_eq!(execute(source), "false\n");
+    assert!(compile("print ffi1 \"lib.so\" \"f\" true").is_err());
+    assert!(compile("print ffi0 \"lib.so\" 3").is_err());
+    assert!(compile("print ffi2 \"lib.so\" \"f\" 1 \"2\"").is_err());
+}
