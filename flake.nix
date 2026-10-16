@@ -7,7 +7,7 @@
       forAllSystems = f: nixpkgs.lib.genAttrs supportedSystems (system: f (import nixpkgs { inherit system; }));
     in {
       devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell { packages = with pkgs; [ cargo rustc rustfmt clippy gcc clang python3 ffmpeg librsvg ]; };
+        default = pkgs.mkShell { packages = with pkgs; [ cargo rustc rustfmt clippy gcc clang python3 ]; };
       });
     };
 }
