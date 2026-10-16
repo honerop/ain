@@ -146,3 +146,20 @@ while a task runs to preserve the user's partly typed input. Normal `gui`
 remains the simple blocking convenience API. These operations do not magically
 make synchronous `chat` calls nonblocking; spawn a typed Data callback that
 invokes the provider, then poll its task with `ready` from a `guitick` loop.
+
+### Additional GTK4 widgets
+
+The native `gui` and nonblocking `guiupdate` layout strings support:
+
+- `image\\tFILENAME\\tSIZE`: picture from a local file with a bounded square size
+  (32..720 px). Requires the Ain `read` builtin capability when restricted.
+- `progress\\tPERCENT\\tCAPTION`: progress bar with bounded 0..100 fraction
+  and optional caption.
+- `separator\\t`: horizontal separator between sections.
+- `action\\tID\\tCAPTION`: vertical full-width button, unlike the bottom
+  horizontal `button` row. Both emit the same `ID\\nINPUT` event format.
+
+Images use GTK's native file loaders and must be explicitly available on the
+machine. All content and event behavior stays in Ain code. These are incremental
+widgets, not a general virtual DOM, style engine or comprehensive accessibility
+framework.
