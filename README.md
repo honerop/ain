@@ -175,6 +175,13 @@ These builtin checks are **not an OS sandbox** and do not protect against
 untrusted native FFI or permitted subprocesses. See the
 [AI tooling guide](docs/ai-tooling.md).
 
+## Built-in assertions for AI-generated tests
+
+`assert CONDITION MESSAGE` provides type-checked native test assertions
+without test frameworks or imports. False conditions return a nonzero native
+exit status and include the diagnostic message. See the
+[assertions guide](docs/assertions.md).
+
 ## A first look
 
 ```text
