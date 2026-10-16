@@ -183,6 +183,19 @@ The standard library now includes typed text/list operations such as
 directly to efficient native operations and reject incompatible element
 types. See the [functional standard-library guide](docs/functional-stdlib.md).
 
+## JSON-driven video generation
+
+The experimental [Ain video generator](apps/video/README.md) turns structured
+JSON scenes into animated SVG frames and encodes narrated MP4 videos using
+librsvg and FFmpeg. Scene timing, per-object animation and interpolation are
+implemented in [Ain source](apps/video/render.ain), with Python used only for
+validation and external encoder orchestration. It supports moving rectangles,
+circles, diagram lines, styled text and optional narration/music.
+
+```sh
+python3 apps/video/generate.py apps/video/examples/explainer.json explainer.mp4
+```
+
 ## A first look
 
 ```text
