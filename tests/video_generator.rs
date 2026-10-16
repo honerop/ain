@@ -3,78 +3,85 @@ use std::fs;
 use std::process::Command;
 
 #[test]
-fn ain_video_renderer_generates_timed_svg_frames() {
+fn ain_only_renderer_writes_valid_y4m_frames() {
+    // The video application must remain ordinary Ain, with no new compiler builtins.
     let compiled = compile(include_str!("../apps/video/render.ain"))
-        .expect("the Ain video renderer must compile");
-    assert!(compiled.rust.contains("ain_svgwrite("));
+        .expect("Ain-only video source must compile");
+    assert!(compiled.rust.contains("ain_fs_write("));
+    assert!(!compiled.rust.contains("ain_process_run("));
 
     let workspace = std::env::temp_dir().join(format!(
-        "ain-video-test-{}-{:?}",
+        "ain-y4m-test-{}-{:?}",
         std::process::id(),
         std::thread::current().id()
     ));
     fs::create_dir_all(&workspace).unwrap();
-    let rust_source = workspace.join("video.rs");
-    let executable = workspace.join("video");
-    let config = workspace.join("project.json");
-    let frames = workspace.join("frames");
+    let generated = workspace.join("video.rs");
+    let binary = workspace.join("video");
+    let json = workspace.join("movie.json");
+    let output = workspace.join("movie.y4m");
 
-    fs::write(&rust_source, compiled.rust).unwrap();
+    fs::write(&generated, compiled.rust).unwrap();
     fs::write(
-        &config,
-        r##"{"width":200,"height":100,"fps":2,"scenes":[
-          {"frames":3,"background":"#101825","elements":[
-            {"kind":"circle","cx":30,"cy":45,"r":8,"fill":"#00ccff","from":{"cx":10}},
-            {"kind":"text","x":50,"y":30,"value":"x < y","font_size":32,"anchor":"middle"}
+        &json,
+        r#"{"width":16,"height":16,"fps":2,"scenes":[
+          {"frames":2,"background":"black","elements":[
+            {"kind":"rect","x":0,"y":0,"width":8,"height":8,
+             "fill":"white","from":{"x":0},"to":{"x":4}}
           ]},
-          {"frames":2,"background":"#123456","elements":[
-            {"kind":"line","x1":5,"y1":5,"x2":100,"y2":50,"stroke":"white","stroke_width":4}
-          ]}
-        ]}"##,
+          {"frames":1,"background":"navy","elements":[]}
+        ]}"#,
     )
     .unwrap();
 
-    let compile_output = Command::new("rustc")
-        .arg("--edition=2021")
-        .arg(&rust_source)
+    let built = Command::new("rustc")
+        .args(["--edition=2021"])
+        .arg(&generated)
         .arg("-o")
-        .arg(&executable)
+        .arg(&binary)
         .output()
-        .expect("rustc must be available for native video test");
+        .expect("rustc must be installed for the native Ain backend");
     assert!(
-        compile_output.status.success(),
-        "generated Rust failed: {}",
-        String::from_utf8_lossy(&compile_output.stderr)
+        built.status.success(),
+        "Ain generated Rust did not compile: {}",
+        String::from_utf8_lossy(&built.stderr)
     );
 
-    let run = Command::new(&executable)
-        .env("AIN_VIDEO_SPEC", &config)
-        .env("AIN_VIDEO_FRAMES", &frames)
+    let run = Command::new(&binary)
+        .env("AIN_VIDEO_SPEC", &json)
+        .env("AIN_VIDEO_OUTPUT", &output)
         .output()
         .unwrap();
     assert!(
         run.status.success(),
-        "AIN renderer failed: {}",
+        "Ain video generator failed: {}",
         String::from_utf8_lossy(&run.stderr)
     );
-    let stdout = String::from_utf8_lossy(&run.stdout);
-    assert!(stdout.contains("\"ok\":true"), "{stdout}");
-    assert!(stdout.contains("\"frames\":5"), "{stdout}");
+    assert!(String::from_utf8_lossy(&run.stdout).contains("Wrote 3 Y4M frames"));
 
-    let first = fs::read_to_string(frames.join("frame_000000.svg")).unwrap();
-    let middle = fs::read_to_string(frames.join("frame_000001.svg")).unwrap();
-    let last_first_scene = fs::read_to_string(frames.join("frame_000002.svg")).unwrap();
-    let second_scene = fs::read_to_string(frames.join("frame_000003.svg")).unwrap();
-    assert!(first.contains("cx=\"10\""), "{first}");
-    assert!(middle.contains("cx=\"20\""), "{middle}");
-    assert!(last_first_scene.contains("cx=\"30\""), "{last_first_scene}");
-    assert!(first.contains("font-size=\"32\""), "{first}");
-    assert!(first.contains("&lt;"), "{first}");
-    assert!(second_scene.contains("<line "), "{second_scene}");
-    assert!(second_scene.contains("stroke-width=\"4\""), "{second_scene}");
-    assert!(second_scene.contains("fill=\"#123456\""), "{second_scene}");
-    assert!(frames.join("frame_000004.svg").is_file());
-    assert!(!frames.join("frame_000005.svg").exists());
+    let actual = fs::read(&output).unwrap();
+    let header = b"YUV4MPEG2 W16 H16 F2:1 Ip A1:1 C420jpeg\n";
+    let plane_length = 16 * 16;
+    let chroma_length = plane_length / 4;
+    let frame_length = 6 + plane_length + 2 * chroma_length;
+    assert!(actual.starts_with(header));
+    assert_eq!(actual.len(), header.len() + frame_length * 3);
 
-    fs::remove_dir_all(workspace).unwrap();
+    let first = header.len();
+    assert_eq!(&actual[first..first + 6], b"FRAME\n");
+    assert_eq!(actual[first + 6], b'~'); // Rectangle at (0,0), frame 0
+    assert_eq!(actual[first + 6 + 12], b' '); // Background at (12,0)
+
+    let second = first + frame_length;
+    assert_eq!(&actual[second..second + 6], b"FRAME\n");
+    assert_eq!(actual[second + 6], b' '); // Rectangle moved right
+    assert_eq!(actual[second + 6 + 4], b'~');
+
+    let third = second + frame_length;
+    assert_eq!(&actual[third..third + 6], b"FRAME\n");
+    assert_eq!(actual[third + 6], b'0'); // Second scene background
+    assert_eq!(actual[third + 6 + plane_length], b'~'); // U plane
+    assert_eq!(actual[third + 6 + plane_length + chroma_length], b'~'); // V plane
+
+    fs::remove_dir_all(&workspace).unwrap();
 }
