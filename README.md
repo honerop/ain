@@ -190,7 +190,7 @@ JSON scenes into animated SVG frames and encodes narrated MP4 videos using
 librsvg and FFmpeg. Scene timing, per-object animation and interpolation are
 implemented in [Ain source](apps/video/render.ain), with Python used only for
 validation and external encoder orchestration. It supports moving rectangles,
-circles, diagram lines, styled text and optional narration/music.
+circles, diagram lines, styled text, locally embedded images and optional narration/music.
 
 ```sh
 python3 apps/video/generate.py apps/video/examples/explainer.json explainer.mp4
