@@ -699,7 +699,7 @@ fn ain_input(_: ()) -> String {
     let uses_tasks = out.contains("ain_task_");
     if uses_tasks { out.push_str(include_str!("../runtime/ain_tasks.rs")); }
     if out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") { out.push_str(include_str!("../runtime/ain_sqlite.rs")); }
-    let uses_serialize = out.contains("ain_gltfwrite(") || out.contains("ain_csv") || out.contains("ain_trycsv(")
+    let uses_serialize = out.contains("ain_svgwrite(") || out.contains("ain_gltfwrite(") || out.contains("ain_csv") || out.contains("ain_trycsv(")
         || out.contains("ain_b64") || out.contains("ain_utf8bytes(")
         || out.contains("ain_frombytes(") || out.contains("ain_zpack(") || out.contains("ain_zunpack(");
     if uses_serialize { out.push_str(include_str!("../runtime/ain_serialize.rs")); }
