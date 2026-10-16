@@ -15,3 +15,5 @@ Change builtin definitions consistently across Rust `builtin_arity`, Rust type i
 The new experimental `src/compiler/air.rs` consumes a checked AST and emits unboxed LLVM IR. Preserve checked arithmetic and short-circuit semantics. Keep all AIR opcodes explicitly typed; unsupported syntax must fail with a compiler diagnostic rather than silently use C or an unsafe runtime. Run `cargo test` and `cargo run -- run-llvm examples/recursive.ain` with Clang installed before merging any AIR changes. The C bootstrap remains intact until the self-hosted compiler can consume AIR and produce native code on its own.
 
 The general-purpose `run` builtin executes an external program with exactly one argument, no shell. Keep application-specific integrations (GTK, browser automation, model providers) out of the compiler.
+
+GUI, chat and browser are reusable AIN builtins, implemented inside `runtime/` and made available via Rust backend. Applications should express layout and interactions in AIN. Preserve portable C bootstrap, and explicitly reject unsupported features on AIR/LLVM.

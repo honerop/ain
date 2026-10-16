@@ -21,7 +21,7 @@ sig_for s = if has_eq s sig_or_empty s ""
 sig_or_empty s = if > argcount params_of s 0 sig_line s ""
 
 # Arity registry as newline-separated name:arity pairs.
-base _ = "+:2\n-:2\n*:2\n/:2\n%:2\n==:2\n!=:2\n<:2\n<=:2\n>:2\n>=:2\nand:2\nor:2\nmin:2\nmax:2\npow:2\nconcat:2\ncontains:2\nstarts:2\nends:2\nbefore:2\nafter:2\nif:3\nreplace:3\nclamp:3\nnot:1\nneg:1\nabs:1\nprint:1\nlen:1\nupper:1\nlower:1\ntrim:1\nstr:1\nword:1\nskip:1\nnum:1\nisnum:1\ninput:1\nrun:2\n"
+base _ = "+:2\n-:2\n*:2\n/:2\n%:2\n==:2\n!=:2\n<:2\n<=:2\n>:2\n>=:2\nand:2\nor:2\nmin:2\nmax:2\npow:2\nconcat:2\ncontains:2\nstarts:2\nends:2\nbefore:2\nafter:2\nif:3\nreplace:3\nclamp:3\nnot:1\nneg:1\nabs:1\nprint:1\nlen:1\nupper:1\nlower:1\ntrim:1\nstr:1\nword:1\nskip:1\nnum:1\nisnum:1\ninput:1\nrun:2\ngui:2\nbrowser:2\nchat:3\n"
 lookup tab n = if == tab "" -1 if == before line tab ":" n num after line tab ":" lookup next tab n
 arity tab n = if >= lookup tab n 0 lookup tab n lookup base _ n
 

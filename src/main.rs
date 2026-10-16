@@ -9,10 +9,21 @@ fn usage() {
     eprintln!("AIN compiler 0.3.0\nUsage:\n  ainc check <file.ain>\n  ainc air <file.ain> [-o file.air]\n  ainc llvm <file.ain> [-o file.ll]\n  ainc build-llvm <file.ain> [-o executable]\n  ainc run-llvm <file.ain>\n  ainc transpile <file.ain> [-o file.rs]\n  ainc build <file.ain> [-o executable]\n  ainc run <file.ain>\n  ainc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
 }
 fn rustc(rust: &Path, binary: &Path) -> Result<(), String> {
-    let result = Command::new("rustc")
-        .arg("--edition=2021").arg("-O")
-        .arg(rust).arg("-o").arg(binary)
-        .status().map_err(|e| format!("cannot run rustc: {e}; install Rust first"))?;
+    let mut cmd = Command::new("rustc");
+    cmd.arg("--edition=2021").arg("-O").arg(rust).arg("-o").arg(binary);
+    let generated = fs::read_to_string(rust).map_err(|e| e.to_string())?;
+    if generated.contains("fn ain_gui(") {
+        let output = Command::new("pkg-config")
+            .args(["--libs-only-L", "gtk4"]).output()
+            .map_err(|e| format!("gui needs pkg-config and GTK4: {e}"))?;
+        if !output.status.success() { return Err("GTK4 is unavailable".into()); }
+        for flag in String::from_utf8_lossy(&output.stdout).split_whitespace() {
+            if let Some(libdir) = flag.strip_prefix("-L") {
+                cmd.arg("-L").arg(format!("native={libdir}"));
+            }
+        }
+    }
+    let result = cmd.status().map_err(|e| format!("cannot run rustc: {e}"))?;
     if !result.success() { return Err(format!("rustc exited with status: {result}")); }
     Ok(())
 }

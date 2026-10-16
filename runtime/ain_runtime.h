@@ -123,4 +123,8 @@ static V v_run(V command,V argument) {
  if(waitpid(pid,&status,0)<0) v_fail("waitpid failed");
  return v_int(WIFEXITED(status)?WEXITSTATUS(status):1);
 }
+/* GUI, browser and AI provider integration are Rust-backend only for now. */
+static V v_gui(V title,V spec) { (void)title; (void)spec; v_fail("gui needs native Rust backend"); return v_str(""); }
+static V v_browser(V op,V arg) { (void)op; (void)arg; v_fail("browser needs native Rust backend"); return v_str(""); }
+static V v_chat(V provider,V model,V prompt) { (void)provider; (void)model; (void)prompt; v_fail("chat needs native Rust backend"); return v_str(""); }
 #endif

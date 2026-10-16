@@ -99,3 +99,36 @@ can launch that executable without teaching Ain about GTK, browsers or AI provid
 **Security:** `run` can execute external programs with the user's permissions.
 Do not run untrusted Ain code. This experimental builtin is not in the LLVM
 backend yet.
+
+## Native desktop GUI, AI, and browser (Rust native backend)
+
+AIN includes broad, reusable builtins so programs written by AI models can
+create desktop apps without switching to Rust, Python or JavaScript.
+
+```text
+layout = "header\\tHello\\nlog\\tWelcome\\nentry\\tprompt\\tType here\\nbutton\\tsend\\tSend\\nvim\\t1\\n"
+event = gui "Demo" layout
+print event
+```
+
+`gui title layout` opens or updates a **native GTK4 window** and blocks until a
+button, Enter key, or close event. Events are returned as `action\\ninput`, with
+`quit\\n` for window close. The layout uses newline-separated records with
+literal tab delimiters: `header<TAB>text`, `hint<TAB>text`,
+`log<TAB>text`, `entry<TAB>id<TAB>placeholder`,
+`button<TAB>id<TAB>caption`, and `vim<TAB>1` for Vim keys.
+Ain code can recursively call `gui` to update content and handle events.
+
+`chat provider model prompt` returns a text response through either `deepinfra`
+(requires `DEEPINFRA_API_KEY` and curl/jq) or `chatgpt` (requires the official
+Codex CLI and `codex login`). An empty model string picks the provider default.
+
+`browser operation argument` maintains an isolated Chromium/Playwright session.
+Operations: `open`, `read`, `links`, `back`, `click`, `fill`, `screenshot`.
+The `fill` argument is formatted as `CSS_SELECTOR|value`. It requires Python
+Playwright, Chromium and jq. Browser code and provider integration are built into
+the language runtime rather than each application repository.
+
+All three features are experimental, not yet supported by AIR/LLVM or the
+self-hosted C backend, and are unsupported on platforms lacking their
+dependencies. The GUI event loop currently blocks during network operations.
