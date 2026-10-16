@@ -163,3 +163,21 @@ Images use GTK's native file loaders and must be explicitly available on the
 machine. All content and event behavior stays in Ain code. These are incremental
 widgets, not a general virtual DOM, style engine or comprehensive accessibility
 framework.
+
+## Terminal and CLI applications (Rust native backend)
+
+Ain supports interactive and one-shot CLI applications without a GUI or extra scripting language:
+
+- `argv _` returns a Data list of UTF-8 command-line arguments, excluding the executable path. Use `size`, `get` and `astext` to inspect it.
+- `readline _` reads exactly one stdin line and returns a recoverable Data result with `ok`, `value`, `error` fields. Blank lines are valid; EOF returns `ok=false`, `error="end of input"`. Lines exceeding 1 MiB are rejected.
+- `print` writes a line to stdout. Existing `input _` continues to read all stdin at once.
+
+```ain
+loop _ = receive readline _
+receive value = if asbool field value "ok" handle astext field value "value" "done"
+handle line = if == line ":quit" "done" loop print line
+print encode argv _
+print loop _
+```
+
+These generic primitives require no GTK4 dependency and are currently implemented by the Rust code-generation backend, not the experimental AIR/LLVM or bootstrap C backend.

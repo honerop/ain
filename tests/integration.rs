@@ -994,3 +994,40 @@ fn browser_only_program_links_json_runtime_with_opencode_provider() {
     let no_browser = compile("print 42\n").unwrap().rust;
     assert!(!no_browser.contains("enum AinData"), "tiny programs do not link JSON runtime");
 }
+
+#[test]
+fn terminal_arguments_and_line_by_line_stdin() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let generated = compile(r#"print encode argv _
+first = readline _
+print asbool field first "ok"
+print astext field first "value"
+blank = readline _
+print asbool field blank "ok"
+print astext field blank "value"
+last = readline _
+print asbool field last "ok"
+print astext field last "value"
+eof = readline _
+print asbool field eof "ok"
+print astext field eof "error"
+"#).unwrap().rust;
+    let dir = std::env::temp_dir().join(format!("ain-cli-test-{}-{}",
+        std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+    fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("main.rs");
+    let binary = dir.join("cli");
+    fs::write(&source, generated).unwrap();
+    let build = Command::new("rustc").args(["--edition=2021", "-O"])
+        .arg(&source).arg("-o").arg(&binary).output().unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
+    let mut child = Command::new(binary).args(["--model", "x/y", "hello world"])
+        .stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
+    child.stdin.take().unwrap().write_all(b"kick\\n\\nworld\\n").unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout).unwrap(),
+        "[\\"--model\\",\\"x/y\\",\\"hello world\\"]\\ntrue\\nkick\\ntrue\\n\\ntrue\\nworld\\nfalse\\nend of input\\n");
+    fs::remove_dir_all(dir).unwrap();
+}

@@ -147,7 +147,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "ffi2" => 4,
         "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend" => 2,
         "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr" => 1,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr" => 1,
         _ => return None,
     })
 }
@@ -530,6 +530,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                     types.unify(actual[2].clone(), Ty::Data, line)?; Ty::Data },
                 "gui"|"browser"|"chat" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Str },
                 "input" => { types.unify(actual[0].clone(), Ty::Unit, line)?; string },
+                "argv"|"readline" => { types.unify(actual[0].clone(), Ty::Unit, line)?; Ty::Data },
                 "num" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Int },
                 "isnum" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Bool },
                 "str" => string,
@@ -759,6 +760,8 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "num" => format!("({}).parse::<i64>().expect(\"invalid integer\")", a[0]),
                 "isnum" => format!("({}).parse::<i64>().is_ok()", a[0]),
                 "input" => format!("ain_input({})", a[0]),
+                "argv" => format!("ain_argv({})", a[0]),
+                "readline" => format!("ain_readline({})", a[0]),
                 "abs" => format!("({}).checked_abs().expect(\"integer overflow\")", a[0]),
                 "neg" => format!("({}).checked_neg().expect(\"integer overflow\")", a[0]),
                 "min" => format!("std::cmp::min({}, {})", a[0], a[1]),
@@ -847,6 +850,9 @@ fn ain_input(_: ()) -> String {
     out.push_str("}\n");
     let uses_data = out.contains("ain_chat(") || out.contains("ain_browser(") || out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
     if uses_data { out.push_str(include_str!("../runtime/ain_data.rs")); }
+    if out.contains("ain_argv(") || out.contains("ain_readline(") {
+        out.push_str(include_str!("../runtime/ain_terminal.rs"));
+    }
     let uses_effects = out.contains("ain_fs_list(") || out.contains("ain_fs_mkdir(")
         || out.contains("ain_fs_remove(") || out.contains("ain_process_run(")
         || out.contains("ain_working_directory(") || out.contains("ain_ffi0(") || out.contains("ain_ffi1(") || out.contains("ain_ffi2(")
@@ -926,6 +932,11 @@ mod tests {
         let c = compile("i _ = print \"I\"\ni _").unwrap();
         assert!(c.rust.contains("fn ain_i(_unit_0: ()) -> ()"));
         assert!(c.rust.contains("ain_i(())"));
+    }
+    #[test] fn terminal_builtins_are_typed() {
+        assert!(compile("print encode argv _\\nprint asbool field readline _ \\"ok\\"\\n").is_ok());
+        assert!(compile("print argv 2").is_err());
+        assert!(compile("print readline \\"not unit\\"").is_err());
     }
     #[test] fn forward_reference() { assert!(compile("a x = b x\nb y = + y 1\nprint a 5").is_ok()); }
     #[test] fn strings_and_unicode() { assert!(compile("msg = upper \"zażółć\"\nprint msg").is_ok()); }
