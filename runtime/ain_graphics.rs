@@ -81,6 +81,23 @@ fn ain_svgwrite(path: String, scene: AinData) -> AinData {
                     output.push_str(&format!(
                         r#"<circle cx="{x}" cy="{y}" r="{radius}" fill="{fill}"/>"#));
                 }
+                "line" => {
+                    let x1 = ain_graph_number(values, "x1")?;
+                    let y1 = ain_graph_number(values, "y1")?;
+                    let x2 = ain_graph_number(values, "x2")?;
+                    let y2 = ain_graph_number(values, "y2")?;
+                    let stroke = ain_svg_color(values, "stroke", "white")?;
+                    let stroke_width = match values.get("stroke_width") {
+                        None => 3,
+                        Some(_) => ain_graph_number(values, "stroke_width")?,
+                    };
+                    if !(1..=128).contains(&stroke_width) {
+                        return Err("SVG line stroke_width must be 1..128".into());
+                    }
+                    output.push_str(&format!(
+                        r#"<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{stroke}" stroke-width="{stroke_width}" stroke-linecap="round"/>"#
+                    ));
+                }
                 "text" => {
                     let x = ain_graph_number(values, "x")?;
                     let y = ain_graph_number(values, "y")?;
@@ -89,8 +106,22 @@ fn ain_svgwrite(path: String, scene: AinData) -> AinData {
                     };
                     if text.len() > 10_000 { return Err("SVG text too long".into()); }
                     let fill = ain_svg_color(values, "fill", "black")?;
+                    let font_size = match values.get("font_size") {
+                        None => 24,
+                        Some(_) => ain_graph_number(values, "font_size")?,
+                    };
+                    if !(1..=512).contains(&font_size) {
+                        return Err("SVG font_size must be 1..512".into());
+                    }
+                    let anchor = match values.get("anchor") {
+                        None => "start",
+                        Some(AinData::Text(s)) if s == "start" => "start",
+                        Some(AinData::Text(s)) if s == "middle" => "middle",
+                        Some(AinData::Text(s)) if s == "end" => "end",
+                        _ => return Err("SVG anchor must be start, middle or end".into()),
+                    };
                     output.push_str(&format!(
-                        r#"<text x="{x}" y="{y}" fill="{fill}">{}</text>"#,
+                        r#"<text x="{x}" y="{y}" fill="{fill}" font-size="{font_size}" font-family="sans-serif" text-anchor="{anchor}">{}</text>"#,
                         ain_svg_escape(text)));
                 }
                 _ => return Err("Unsupported SVG shape kind".into()),
