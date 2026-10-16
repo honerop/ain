@@ -94,13 +94,6 @@ def validate(spec: object) -> tuple[int, int]:
                     raise ValueError(f"{label}.path must be a local image filename")
                 if Path(path).suffix.lower() not in (".png", ".jpg", ".jpeg"):
                     raise ValueError(f"{label}.path must end in .png, .jpg or .jpeg")
-            if kind == "image":
-                for field in ("width", "height"):
-                    if shape[field] <= 0:
-                        raise ValueError(f"{label}.{field} must be positive")
-                    for phase in ("from", "to"):
-                        if phase in shape and field in shape[phase] and shape[phase][field] <= 0:
-                            raise ValueError(f"{label}.{phase}.{field} must be positive")
             for field in ANIMATED & shape.keys():
                 integer(shape[field], f"{label}.{field}", -32768, 32768)
             for key in ("from", "to"):
@@ -116,6 +109,13 @@ def validate(spec: object) -> tuple[int, int]:
                 for key in ("from", "to"):
                     if size in shape.get(key, {}):
                         integer(shape[key][size], f"{label}.{key}.{size}", 0, 32768)
+            if kind == "image":
+                for field in ("width", "height"):
+                    if shape[field] <= 0:
+                        raise ValueError(f"{label}.{field} must be positive")
+                    for phase in ("from", "to"):
+                        if phase in shape and field in shape[phase] and shape[phase][field] <= 0:
+                            raise ValueError(f"{label}.{phase}.{field} must be positive")
             for attr in ("fill", "stroke"):
                 if attr in shape:
                     color(shape[attr], f"{label}.{attr}")
