@@ -72,6 +72,15 @@ mismatches. See the [typed list guide](docs/typed-lists.md).
 This is an incremental step toward generic collections, not full support for
 user-defined types, closures, algebraic data types, or generic constraints.
 
+## Typed optional values and recoverable errors
+
+The Rust backend supports inferred `Option<T>` and `Result<T, String>`
+operations, including type-checked fallback values and a recoverable
+`tryread` filesystem function. See [Option and Result](docs/typed-option-result.md).
+
+These builtins do not yet replace every panicking operation, and general
+user-defined ADTs and pattern matching remain unimplemented.
+
 ## A first look
 
 ```text
