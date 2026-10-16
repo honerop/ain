@@ -92,7 +92,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "ffi2" => 4,
         "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0" => 2,
         "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues" => 1,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite" => 1,
         _ => return None,
     })
 }
@@ -328,6 +328,8 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "tomlparse" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
+                "tomlwrite" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
                 "ffi0"|"ffi1"|"ffi2" => {
                     types.unify(actual[0].clone(), Ty::Str, line)?;
                     types.unify(actual[1].clone(), Ty::Str, line)?;
@@ -523,6 +525,8 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "tomlparse" => format!("ain_tomlparse({})", a[0]),
+                "tomlwrite" => format!("ain_tomlwrite({})", a[0]),
                 "ffi0" => format!("ain_ffi0({}, {})", a[0], a[1]),
                 "ffi1" => format!("ain_ffi1({}, {}, {})", a[0], a[1], a[2]),
                 "ffi2" => format!("ain_ffi2({}, {}, {}, {})", a[0], a[1], a[2], a[3]),
@@ -741,6 +745,9 @@ fn ain_input(_: ()) -> String {
     }
     if out.contains("ain_ffi0(") || out.contains("ain_ffi1(") || out.contains("ain_ffi2(") {
         out.push_str(include_str!("../runtime/ain_ffi.rs"));
+    }
+    if out.contains("ain_tomlparse(") || out.contains("ain_tomlwrite(") {
+        out.push_str(include_str!("../runtime/ain_toml.rs"));
     }
     let uses_gui = out.contains("ain_gui(") || out.contains("ain_guiupdate(") || out.contains("ain_guitick(");
     let uses_chat = out.contains("ain_chat(");
