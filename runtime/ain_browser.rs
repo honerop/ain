@@ -1,8 +1,8 @@
 // Generic browser(op, argument) operation for Ain. Browser implementation
 // is a separately sandboxed Playwright/Chromium process, not app-specific code.
 use std::cell::RefCell;
-use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::io::{BufRead, BufReader};
+use std::process::{Child, ChildStdin, ChildStdout};
 struct AinBrowser {
     process: Child,
     input: ChildStdin,
@@ -25,7 +25,7 @@ fn ain_browser_driver() -> Result<AinBrowser, String> {
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| e.to_string())?.as_nanos()
     ));
-    std::fs::write(&filename, include_str!("ain_browser.py")).map_err(|e| e.to_string())?;
+    std::fs::write(&filename, AIN_BROWSER_DRIVER_SOURCE).map_err(|e| e.to_string())?;
     let python = std::env::var("AIN_BROWSER_PYTHON").unwrap_or_else(|_| "python3".into());
     let mut process = Command::new(python).arg(&filename)
         .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null())

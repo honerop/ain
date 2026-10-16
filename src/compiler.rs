@@ -89,7 +89,8 @@ fn builtin_arity(name: &str) -> Option<usize> {
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
-        "run" => 2,
+        "run"|"gui"|"browser" => 2,
+        "chat" => 3,
         "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input" => 1,
         _ => return None,
     })
@@ -243,6 +244,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
                 "run" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Int },
+                "gui"|"browser"|"chat" => { for a in actual { types.unify(a, Ty::Str, line)?; } Ty::Str },
                 "input" => { types.unify(actual[0].clone(), Ty::Unit, line)?; string },
                 "num" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Int },
                 "isnum" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Bool },
@@ -332,6 +334,9 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
                 "run" => format!("std::process::Command::new({}).arg({}).status().expect(\"cannot run process\").code().unwrap_or(1) as i64", a[0], a[1]),
+                "gui" => format!("ain_gui({}, {})", a[0], a[1]),
+                "chat" => format!("ain_chat({}, {}, {})", a[0], a[1], a[2]),
+                "browser" => format!("ain_browser({}, {})", a[0], a[1]),
                 "str" => format!("ain_str({})", a[0]),
                 "len" => format!("(({}).chars().count() as i64)", a[0]),
                 "upper" => format!("({}).to_uppercase()", a[0]),
@@ -430,6 +435,15 @@ fn ain_input(_: ()) -> String {
         }
     }
     out.push_str("}\n");
+    let uses_gui = out.contains("ain_gui(");
+    let uses_chat = out.contains("ain_chat(");
+    let uses_browser = out.contains("ain_browser(");
+    if uses_gui { out.push_str(include_str!("../runtime/ain_gui.rs")); }
+    if uses_chat || uses_browser { out.push_str(include_str!("../runtime/ain_chat.rs")); }
+    if uses_browser {
+        out.push_str(&format!("\nconst AIN_BROWSER_DRIVER_SOURCE: &str = {:?};\n", include_str!("../runtime/ain_browser.py")));
+        out.push_str(include_str!("../runtime/ain_browser.rs"));
+    }
     out
 }
 
@@ -471,6 +485,15 @@ mod tests {
         assert!(compiled.rust.contains("std::process::Command::new"));
         assert!(compile("run 42 \"arg\"").is_err());
         assert!(compile("run \"echo\"").is_err());
+    }
+    #[test] fn generic_desktop_and_ai_builtins() {
+        let program = "layout = \"header\\tHello\\nbutton\\tok\\tOK\\n\"\nstate = gui \"Demo\" layout\nprint state\nprint chat \"deepinfra\" \"\" \"hello\"\nprint browser \"read\" \"\"\n";
+        let output = compile(program).unwrap().rust;
+        assert!(output.contains("fn ain_gui("));
+        assert!(output.contains("fn ain_chat("));
+        assert!(output.contains("fn ain_browser("));
+        assert!(compile("gui 1 \"body\"").is_err());
+        assert!(compile("chat \"deepinfra\" \"\"").is_err());
     }
     #[test] fn zero_arg_value() { assert!(compile("x = 10\nprint x").is_ok()); }
 }
