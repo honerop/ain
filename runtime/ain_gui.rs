@@ -88,6 +88,9 @@ unsafe fn ain_gui_event(gui: *mut AinGui, action: &str) {
     };
     (*gui).event = Some(format!("{action}\n{input}"));
 }
+unsafe extern "C" fn ain_gui_button_destroy(data: *mut c_void, _closure: *mut c_void) {
+    drop(Box::from_raw(data as *mut AinGuiButton));
+}
 unsafe extern "C" fn ain_gui_button_clicked(_button: *mut c_void, data: *mut c_void) {
     let command = &*(data as *mut AinGuiButton);
     ain_gui_event(command.gui, &command.id);
@@ -209,7 +212,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 let button = gtk_button_new_with_label(ain_gui_c(b).as_ptr());
                 let action = Box::into_raw(Box::new(AinGuiButton { gui, id: a.to_string() }));
                 g_signal_connect_data(button, ain_gui_c("clicked").as_ptr(),
-                    ain_gui_button_clicked as *const c_void, action.cast(), ptr::null(), 0);
+                    ain_gui_button_clicked as *const c_void, action.cast(), ain_gui_button_destroy as *const c_void, 0);
                 gtk_box_append(buttons, button);
             }
             "vim" => (*gui).vim = a == "1",
