@@ -66,6 +66,61 @@ fn lex(line: &str, lineno: usize) -> Result<Vec<Token>, CompileError> {
     Ok(result)
 }
 
+/// Deterministic source formatter for AI-authored Ain programs.
+///
+/// It first parses the source to reject malformed expressions, then formats
+/// lexical tokens without changing definition order or comment placement.
+/// The transform is idempotent and emits UTF-8 source with LF line endings.
+pub fn format_source(source: &str) -> Result<String, CompileError> {
+    parse(source)?;
+    let mut output = String::new();
+    for (line_idx, raw) in source.lines().enumerate() {
+        let line = raw.strip_suffix('\r').unwrap_or(raw);
+        let mut in_string = false;
+        let mut escaped = false;
+        let mut comment_offset = None;
+        for (offset, ch) in line.char_indices() {
+            if in_string {
+                if escaped { escaped = false; }
+                else if ch == '\\' { escaped = true; }
+                else if ch == '"' { in_string = false; }
+            } else if ch == '"' { in_string = true; }
+            else if ch == '#' { comment_offset = Some(offset); break; }
+        }
+        let prefix = &line[..comment_offset.unwrap_or(line.len())];
+        let tokens = lex(prefix, line_idx + 1)?;
+        let mut formatted = Vec::with_capacity(tokens.len());
+        for token in tokens {
+            match token {
+                Token::Word(word) => formatted.push(word),
+                Token::String(value) => {
+                    let mut text = String::from("\"");
+                    for ch in value.chars() {
+                        match ch {
+                            '"' => text.push_str("\\\""),
+                            '\\' => text.push_str("\\\\"),
+                            '\n' => text.push_str("\\n"),
+                            '\r' => text.push_str("\\r"),
+                            '\t' => text.push_str("\\t"),
+                            '\0' => text.push_str("\\0"),
+                            c => text.push(c),
+                        }
+                    }
+                    text.push('"');
+                    formatted.push(text);
+                }
+            }
+        }
+        output.push_str(&formatted.join(" "));
+        if let Some(offset) = comment_offset {
+            if !formatted.is_empty() { output.push(' '); }
+            output.push_str(line[offset..].trim_end());
+        }
+        output.push('\n');
+    }
+    Ok(output)
+}
+
 fn valid_name(s: &str) -> bool {
     let mut chars = s.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_alphabetic())
