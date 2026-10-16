@@ -928,3 +928,59 @@ fn extra_functional_operations_reject_ill_typed_arguments() {
     assert!(compile("print listflatten listof 1").is_err());
     assert!(compile("print sortint listof \"not integer\"").is_err());
 }
+
+#[test]
+fn opencode_free_provider_parses_json_lines_and_preserves_model() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = std::env::temp_dir().join(format!("ain-opencode-test-{}-{}",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+    fs::create_dir_all(&dir).unwrap();
+    let script = dir.join("opencode-mock");
+    let args = dir.join("args.txt");
+    fs::write(&script, r#"#!/bin/sh
+printf '%s\n' "$@" > "$AIN_OPENCODE_TEST_ARGS"
+echo '{"type":"step_start","part":{"type":"step-start"}}'
+echo '{"type":"text","part":{"type":"text","text":"Hello "}}'
+echo '{"type":"text","part":{"type":"text","text":"Ainex"}}'
+echo '{"type":"step_finish","part":{"type":"step-finish"}}'
+"#).unwrap();
+    let mut perms = fs::metadata(&script).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&script, perms).unwrap();
+    let source = "print chat \"openbot\" \"\" \"Explain monads\"\n";
+    let rs = dir.join("main.rs");
+    let exe = dir.join("chat");
+    fs::write(&rs, compile(source).unwrap().rust).unwrap();
+    let built = Command::new("rustc").args(["--edition=2021","-O"])
+        .arg(&rs).arg("-o").arg(&exe).output().unwrap();
+    assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
+    let output = Command::new(&exe).env("AIN_OPENCODE_BIN", &script)
+        .env("AIN_OPENCODE_TEST_ARGS",&args).output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8(output.stdout).unwrap(),"Hello Ainex\n");
+    let argv = fs::read_to_string(&args).unwrap();
+    assert!(argv.contains("opencode/mimo-v2.6-flash-free"), "{argv}");
+    assert!(argv.contains("json"), "{argv}");
+    assert!(argv.contains("plan"), "{argv}");
+    assert!(argv.contains("Explain monads"), "{argv}");
+    fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn opencode_provider_rejects_invalid_model_and_missing_executable() {
+    let source = "print chat \"opencode\" \"bad model with spaces\" \"Hello\"\n";
+    assert_eq!(execute(source), "Provider error: Invalid model identifier\n");
+    let dir = std::env::temp_dir().join(format!("ain-opencode-notfound-{}", std::process::id()));
+    let rs = dir.with_extension("rs");
+    let exe = dir.with_extension("exe");
+    fs::write(&rs,compile("print chat \"openbot\" \"\" \"Hello\"\n").unwrap().rust).unwrap();
+    let built = Command::new("rustc").args(["--edition=2021","-O"])
+        .arg(&rs).arg("-o").arg(&exe).output().unwrap();
+    assert!(built.status.success(),"{}",String::from_utf8_lossy(&built.stderr));
+    let output=Command::new(&exe).env("AIN_OPENCODE_BIN",
+        "/nonexistent/ain-opencode-cli-binary").output().unwrap();
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Cannot launch OpenCode CLI"));
+    let _=fs::remove_file(rs);
+    let _=fs::remove_file(exe);
+}
