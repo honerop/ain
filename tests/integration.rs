@@ -897,3 +897,39 @@ fn checked_run_defaults_to_denied_builtins_and_accepts_explicit_grants() {
     assert_eq!(String::from_utf8(allowed.stdout).unwrap(),"restricted read works\n");
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn ain_assert_builtin_verifies_program_invariants() {
+    let source = r#"assert == + 20 22 42 "math"
+assert not false "bool"
+assert == jointext "A" "B" "AB"
+print "all checks passed"
+"#;
+    // This test only exercises valid expressions. Use concat for strings.
+    let source = source.replace("jointext \"A\" \"B\" \"AB\"", "concat \"A\" \"B\" \"AB\"");
+    assert_eq!(execute(&source), "all checks passed\n");
+}
+#[test]
+fn assertion_builtin_rejects_non_bool_or_non_text_arguments() {
+    assert!(compile("assert 42 \"bad\"").is_err());
+    assert!(compile("assert true false").is_err());
+    assert!(compile("assert true \"good\"").is_ok());
+}
+#[test]
+fn failing_ain_assert_sets_nonzero_process_status() {
+    let source = "assert false \"Invariant violated\"\n";
+    let generated = compile(source).unwrap().rust;
+    let dir = std::env::temp_dir().join(format!("ain-assert-{}-{}",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+    fs::create_dir_all(&dir).unwrap();
+    let file=dir.join("main.rs");let exe=dir.join("main");
+    fs::write(&file,generated).unwrap();
+    let built=Command::new("rustc").args(["--edition=2021","-O"])
+        .arg(&file).arg("-o").arg(&exe).output().unwrap();
+    assert!(built.status.success(),"{}",String::from_utf8_lossy(&built.stderr));
+    let result=Command::new(exe).output().unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("Invariant violated"));
+    fs::remove_dir_all(dir).unwrap();
+}
