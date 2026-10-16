@@ -14,4 +14,4 @@ Change builtin definitions consistently across Rust `builtin_arity`, Rust type i
 
 The new experimental `src/compiler/air.rs` consumes a checked AST and emits unboxed LLVM IR. Preserve checked arithmetic and short-circuit semantics. Keep all AIR opcodes explicitly typed; unsupported syntax must fail with a compiler diagnostic rather than silently use C or an unsafe runtime. Run `cargo test` and `cargo run -- run-llvm examples/recursive.ain` with Clang installed before merging any AIR changes. The C bootstrap remains intact until the self-hosted compiler can consume AIR and produce native code on its own.
 
-Desktop builtin: the Rust code generator conditionally links the native GTK4 host only for programs that invoke `desktop`. Keep standard programs free of native GUI dependencies; validate the new runtime on a GTK4-capable NixOS shell. Do not add a browser or local HTTP server in place of the native GUI.
+The general-purpose `run` builtin executes an external program with exactly one argument, no shell. Keep application-specific integrations (GTK, browser automation, model providers) out of the compiler.

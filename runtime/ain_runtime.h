@@ -111,11 +111,16 @@ static V v_contains(V a,V b){return v_bool(strstr(v_s(a),v_s(b))!=NULL);}
 static V v_starts(V a,V b){const char *s=v_s(a),*p=v_s(b);return v_bool(strncmp(s,p,strlen(p))==0);}
 static V v_ends(V a,V b){const char *s=v_s(a),*p=v_s(b);size_t n=strlen(s),m=strlen(p);return v_bool(n>=m&&!strcmp(s+n-m,p));}
 static V v_replace(V a,V b,V c){const char *s=v_s(a),*old=v_s(b),*newtext=v_s(c);size_t n=strlen(old);if(!n)return a;V out=v_str("");while(1){const char *hit=strstr(s,old);if(!hit)return v_concat(out,v_str(s));out=v_concat(out,v_str(v_dup_n(s,(size_t)(hit-s))));out=v_concat(out,v_str(newtext));s=hit+n;}}
-/* The desktop GUI host is currently supported by the Rust backend only.
- * Fail explicitly instead of pretending it was launched in the C bootstrap. */
-static V v_desktop(V title,V system,V page) {
- (void)title; (void)system; (void)page;
- v_fail("desktop is only available through AIN's Rust backend");
- return v_unit();
+/* Run a program with a single literal argument. No shell interpolation. */
+#include <unistd.h>
+#include <sys/wait.h>
+static V v_run(V command,V argument) {
+ const char *exe=v_s(command),*arg=v_s(argument);
+ pid_t pid=fork();
+ if(pid<0) v_fail("fork failed");
+ if(pid==0) { execlp(exe,exe,arg,(char*)NULL); _exit(127); }
+ int status=0;
+ if(waitpid(pid,&status,0)<0) v_fail("waitpid failed");
+ return v_int(WIFEXITED(status)?WEXITSTATUS(status):1);
 }
 #endif

@@ -1,3 +1,0 @@
-# An AIN program can launch a native GTK4 desktop window.
-# GTK4 is only required when this builtin is used.
-desktop "AIN desktop" "You are a helpful assistant." "Native AIN desktop example."

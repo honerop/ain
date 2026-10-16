@@ -66,3 +66,8 @@ fn selfhosted_bootstrap_source_typechecks_in_rust() {
     assert!(c.definitions >= 40);
     assert!(c.rust.contains("fn ain_program"));
 }
+
+#[test]
+fn external_program_no_shell() {
+    assert_eq!(execute("print run \"true\" \"ignored\"\n"), "0\n");
+}

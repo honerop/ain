@@ -9,24 +9,10 @@ fn usage() {
     eprintln!("AIN compiler 0.3.0\nUsage:\n  ainc check <file.ain>\n  ainc air <file.ain> [-o file.air]\n  ainc llvm <file.ain> [-o file.ll]\n  ainc build-llvm <file.ain> [-o executable]\n  ainc run-llvm <file.ain>\n  ainc transpile <file.ain> [-o file.rs]\n  ainc build <file.ain> [-o executable]\n  ainc run <file.ain>\n  ainc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
 }
 fn rustc(rust: &Path, binary: &Path) -> Result<(), String> {
-    let mut cmd = Command::new("rustc");
-    cmd.arg("--edition=2021").arg("-O").arg(rust).arg("-o").arg(binary);
-    // GUI-only programs link GTK4. The compiler and all ordinary AIN
-    // executables remain dependency-free.
-    let source = fs::read_to_string(rust).map_err(|e| e.to_string())?;
-    if source.contains("fn ain_desktop(") {
-        let libs = Command::new("pkg-config").args(["--libs-only-L", "gtk4"])
-            .output().map_err(|e| format!("desktop requires gtk4 and pkg-config: {e}"))?;
-        if !libs.status.success() {
-            return Err("GTK4 development libraries were not found via pkg-config".into());
-        }
-        for flag in String::from_utf8_lossy(&libs.stdout).split_whitespace() {
-            if let Some(path) = flag.strip_prefix("-L") {
-                cmd.arg("-L").arg(format!("native={path}"));
-            }
-        }
-    }
-    let result = cmd.status().map_err(|e| format!("cannot run rustc: {e}; install Rust first"))?;
+    let result = Command::new("rustc")
+        .arg("--edition=2021").arg("-O")
+        .arg(rust).arg("-o").arg(binary)
+        .status().map_err(|e| format!("cannot run rustc: {e}; install Rust first"))?;
     if !result.success() { return Err(format!("rustc exited with status: {result}")); }
     Ok(())
 }
