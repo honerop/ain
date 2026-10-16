@@ -127,6 +127,14 @@ streaming socket or production server framework.
 
 See the [network reference](docs/network.md).
 
+## Native C ABI interoperability
+
+The Linux-native backend supports experimental `ffi0`, `ffi1`, and `ffi2`
+calls to trusted C functions with 64-bit integer signatures, with recoverable
+library/symbol errors. General pointer/struct/callback ABI support and safe
+native-code sandboxing are **not** implemented yet. See the
+[FFI guide](docs/ffi.md) for explicit undefined-behavior warnings.
+
 ## A first look
 
 ```text
