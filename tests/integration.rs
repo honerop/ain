@@ -161,3 +161,25 @@ print iterate "f" false boxint 0"#).is_err());
     assert!(compile("print readstate boxint 3").is_err());
     assert!(compile("print setstate boxint 3 boxint 2").is_err());
 }
+
+
+#[test]
+fn structured_compiler_diagnostics() {
+    let dir = std::env::temp_dir().join(format!("ain-diagnostics-{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("bad.ain");
+    fs::write(&file, "print + true 3\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_ainc"))
+        .arg("check-json").arg(&file).output().unwrap();
+    assert!(!output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains(r#""ok":false"#));
+    assert!(text.contains(r#""line":1"#));
+    assert!(text.contains("type mismatch"));
+    fs::write(&file, "print + 2 3\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_ainc"))
+        .arg("check-json").arg(&file).output().unwrap();
+    assert!(output.status.success());
+    assert!(String::from_utf8(output.stdout).unwrap().contains(r#""ok":true"#));
+    let _ = fs::remove_dir_all(dir);
+}
