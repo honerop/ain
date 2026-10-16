@@ -393,3 +393,37 @@ fn typed_lists_reject_mixed_elements_or_wrong_callbacks() {
     assert!(compile("print listmap \"missing\" listof 1").is_err());
     assert!(compile("bad x = + x 1\nprint listfilter \"bad\" listof 1").is_err());
 }
+
+#[test]
+fn typed_options_are_explicit_and_typechecked() {
+    let source = r#"known = option_some 42
+missing = option_none _
+print option_has known
+print option_get known 3
+print option_get missing 9
+print option_has option_some "hello"
+"#;
+    assert_eq!(execute(source), "true\n42\n9\ntrue\n");
+    assert!(compile("print option_get option_some 2 \"wrong\"").is_err());
+}
+#[test]
+fn typed_result_values_are_recoverable() {
+    let source = r#"good = result_ok 7
+failed = result_err "offline"
+print result_valid good
+print result_get good 1
+print result_get failed 10
+print result_error failed
+"#;
+    assert_eq!(execute(source), "true\n7\n10\noffline\n");
+    assert!(compile("print result_get result_ok true 0").is_err());
+}
+#[test]
+fn tryread_handles_missing_files() {
+    let file = format!("/tmp/ain-nonexistent-{}-test", std::process::id());
+    let source = format!(r#"result = tryread {file:?}
+print result_valid result
+print result_get result "fallback"
+"#);
+    assert_eq!(execute(&source), "false\nfallback\n");
+}
