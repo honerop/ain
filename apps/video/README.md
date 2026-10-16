@@ -81,8 +81,9 @@ Element kinds:
 | `circle` | `cx, cy, r` | `fill` |
 | `line` | `x1, y1, x2, y2` | `stroke, stroke_width` |
 | `text` | `x, y, value` | `fill, font_size, anchor` |
+| `image` | `x, y, width, height, path` | image path to local PNG/JPEG |
 
-All shape kinds can set `from` and/or `to` as geometry overrides. The
+All shape kinds, including images, can set `from` and/or `to` as geometry overrides. The
 Ain renderer interpolates each numeric property over the entire scene:
 
 - `from` supplies the starting coordinates/sizes, defaulting to base fields.
@@ -98,8 +99,10 @@ without tweening text or fill colors. The SVG backend safely escapes text.
 - 2..8192 px resolution per axis, even dimensions; 1..60 FPS.
 - Maximum 18,000 frames, 1,000 scenes, and 999 objects per scene.
 - Uses the **Rust-native Ain backend**, not the LLVM or C bootstrap.
-- No camera moves, LaTeX typesetting, path morphing, gradients, images, masks,
+- No camera moves, LaTeX typesetting, path morphing, gradients, masks,
   text layout or real-time preview yet.
+- Local PNG/JPEG images are embedded in SVG frames as data URIs (up to 1 MB per
+  image). This increases memory/disk use considerably on longer videos.
 - PNG rasterization for every frame is simple but not especially fast.
 - Ain compilation is performed on each invocation; suitable for CLI jobs,
   not interactive editing.
@@ -120,5 +123,5 @@ video export additionally needs librsvg and FFmpeg installed locally.
 
 For a more Manim-like editor, next add a richer scene graph (paths, transforms,
 camera, reusable groups), object-level timing, math text using LaTeX/SVG,
-asset/image support and GPU or streamed rasterization. Keep scene timing in Ain;
+video clips and GPU or streamed rasterization. Keep scene timing in Ain;
 keep hardware video encoding in a specialized native process.
