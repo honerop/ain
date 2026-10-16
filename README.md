@@ -92,6 +92,15 @@ See [the GUI language reference](docs/language.md#responsive-gtk4-applications-i
 An end-to-end native GTK4 test launches a window under Xvfb and verifies a timer
 event. The GUI remains experimental and Linux-only.
 
+## Structured HTTP client
+
+The native backend supports `httprequest` for HTTP methods, validated
+headers, request bodies, timeout/redirect settings, and structured status,
+response headers and text. Transport errors are returned as recoverable
+`Data` results. See the [HTTP client guide](docs/structured-http.md).
+
+The API remains synchronous; true streaming and socket servers are future work.
+
 ## A first look
 
 ```text
