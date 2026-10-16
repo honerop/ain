@@ -71,3 +71,64 @@ fn selfhosted_bootstrap_source_typechecks_in_rust() {
 fn external_program_no_shell() {
     assert_eq!(execute("print run \"true\" \"ignored\"\n"), "0\n");
 }
+
+
+#[test]
+fn json_roundtrip_and_canonical_object_keys() {
+    let source = r#"doc = json "{\"z\":true,\"a\":[1,2.5,null,\"a\\nb\"]}"
+print encode doc
+print size field doc "a"
+print encode keys doc
+print has doc "missing"
+"#;
+    assert_eq!(execute(source), "{\"a\":[1,2.5,null,\"a\\nb\"],\"z\":true}\n4\n[\"a\",\"z\"]\nfalse\n");
+}
+#[test]
+fn unicode_json_and_recoverable_parse_error() {
+    let source = r#"print encode json "\"\\uD83D\\uDE00\""
+print asbool field tryjson "{broken" "ok"
+print astext field tryjson "{broken" "error"
+"#;
+    let output = execute(source);
+    assert!(output.starts_with("\"😀\"\nfalse\n"));
+    assert!(output.contains("Expected"));
+}
+#[test]
+fn immutable_lists_records_pairs_and_extractors() {
+    let source = r#"xs = push push array _ boxint 8 boxint 13
+person = put put record _ "age" boxint 17 "name" boxstr "Ada"
+print encode xs
+print size xs
+print asint get xs 1
+print encode person
+print astext field person "name"
+print encode pair boxbool true nil _
+"#;
+    assert_eq!(execute(source), "[8,13]\n2\n13\n{\"age\":17,\"name\":\"Ada\"}\nAda\n[true,null]\n");
+}
+#[test]
+fn functional_map_filter_fold() {
+    let source = r#"double x = boxint * asint x 2
+even x = == % asint x 2 0
+add a b = boxint + asint a asint b
+xs = push push push array _ boxint 1 boxint 2 boxint 3
+print encode map double xs
+print encode filter even xs
+print asint fold add boxint 0 xs
+"#;
+    assert_eq!(execute(source), "[2,4,6]\n[2]\n6\n");
+}
+#[test]
+fn function_callbacks_are_type_checked() {
+    assert!(compile("f x = boxint asint x\nprint map f push array _ boxint 1").is_ok());
+    assert!(compile("f x = asint x\nprint map f array _").is_err());
+    assert!(compile("f a b = boxint + asint a asint b\nprint map f array _").is_err());
+    assert!(compile("print map missing array _").is_err());
+    assert!(compile("print asint boxstr \"wrong\"").is_err() == false); // dynamic data cast fails at runtime
+}
+#[test]
+fn rejects_invalid_data_builtin_types() {
+    assert!(compile("print push 4 2").is_err());
+    assert!(compile("print json true").is_err());
+    assert!(compile("print put record _ \"name\" true").is_err());
+}
