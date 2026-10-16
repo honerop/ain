@@ -948,7 +948,7 @@ echo '{"type":"step_finish","part":{"type":"step-finish"}}'
     let mut perms = fs::metadata(&script).unwrap().permissions();
     perms.set_mode(0o755);
     fs::set_permissions(&script, perms).unwrap();
-    let source = "print chat \"openbot\" \"\" \"Explain monads\"\n";
+    let source = "print chat \"opencode\" \"\" \"Explain monads\"\n";
     let rs = dir.join("main.rs");
     let exe = dir.join("chat");
     fs::write(&rs, compile(source).unwrap().rust).unwrap();
@@ -973,7 +973,7 @@ fn opencode_provider_rejects_invalid_model_and_missing_executable() {
     let dir = std::env::temp_dir().join(format!("ain-opencode-notfound-{}", std::process::id()));
     let rs = dir.with_extension("rs");
     let exe = dir.with_extension("exe");
-    fs::write(&rs,compile("print chat \"openbot\" \"\" \"Hello\"\n").unwrap().rust).unwrap();
+    fs::write(&rs,compile("print chat \"opencode\" \"\" \"Hello\"\n").unwrap().rust).unwrap();
     let built = Command::new("rustc").args(["--edition=2021","-O"])
         .arg(&rs).arg("-o").arg(&exe).output().unwrap();
     assert!(built.status.success(),"{}",String::from_utf8_lossy(&built.stderr));
