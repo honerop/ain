@@ -62,6 +62,16 @@ See the [SQLite guide](docs/sqlite.md) and
 These are incremental pieces of the proposed batteries-included library,
 not evidence that all database engines, file formats, or multimedia APIs work.
 
+## Statically typed functional collections
+
+The native backend supports inferred homogeneous lists, nested lists, and
+typed `listmap`, `listfilter`, `listfold` operations alongside dynamic
+JSON `Data`. The compiler rejects mixed list elements and callback type
+mismatches. See the [typed list guide](docs/typed-lists.md).
+
+This is an incremental step toward generic collections, not full support for
+user-defined types, closures, algebraic data types, or generic constraints.
+
 ## A first look
 
 ```text

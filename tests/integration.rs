@@ -356,3 +356,40 @@ fn serialization_type_checks() {
     assert!(compile("print zpack false").is_err());
     assert!(compile("print frombytes boxstr \"not a list\"").is_ok());
 }
+
+#[test]
+fn typed_list_construction_and_access() {
+    let source = r#"xs = listpush listpush listof 1 2 3
+print xs
+print listlen xs
+print listat xs 1
+names = listpush listof "Ada" "Léa"
+print listat names 0
+nested = listof listof 9
+print nested
+"#;
+    assert_eq!(execute(source), "[1,2,3]\n3\n2\nAda\n[[9]]\n");
+}
+#[test]
+fn typed_functional_list_operations() {
+    let source = r#"double x = * x 2
+even x = == % x 2 0
+add x y = + x y
+shout x = upper x
+xs = listpush listpush listof 1 2 3
+print listmap "double" xs
+print listfilter "even" xs
+print listfold "add" 10 xs
+words = listof "hello"
+print listmap "shout" words
+"#;
+    assert_eq!(execute(source), "[2,4,6]\n[2]\n16\n[HELLO]\n");
+}
+#[test]
+fn typed_lists_reject_mixed_elements_or_wrong_callbacks() {
+    assert!(compile("print listpush listof 1 true").is_err());
+    assert!(compile("print listat listof 1 true").is_err());
+    assert!(compile("print listlen true").is_err());
+    assert!(compile("print listmap \"missing\" listof 1").is_err());
+    assert!(compile("bad x = + x 1\nprint listfilter \"bad\" listof 1").is_err());
+}
