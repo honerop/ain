@@ -8,6 +8,8 @@ No Python graphics or animation libraries are required.
 from __future__ import annotations
 
 import argparse
+import base64
+import copy
 from concurrent.futures import ThreadPoolExecutor
 import json
 import os
@@ -28,6 +30,7 @@ GEOMETRY = {
     "circle": ("cx", "cy", "r"),
     "line": ("x1", "y1", "x2", "y2"),
     "text": ("x", "y", "value"),
+    "image": ("x", "y", "width", "height"),
 }
 
 
@@ -77,7 +80,7 @@ def validate(spec: object) -> tuple[int, int]:
                 raise ValueError(f"{label} must be an object")
             kind = shape.get("kind")
             if kind not in GEOMETRY:
-                raise ValueError(f"{label}.kind must be rect, circle, line or text")
+                raise ValueError(f"{label}.kind must be rect, circle, line, text or image")
             for field in GEOMETRY[kind]:
                 if field == "value":
                     value = shape.get(field)
@@ -85,6 +88,12 @@ def validate(spec: object) -> tuple[int, int]:
                         raise ValueError(f"{label}.value must be text up to 10000 bytes")
                 else:
                     integer(shape.get(field), f"{label}.{field}", -32768, 32768)
+            if kind == "image":
+                path = shape.get("path")
+                if not isinstance(path, str) or not path or path.startswith(("http:", "https:", "data:")):
+                    raise ValueError(f"{label}.path must be a local image filename")
+                if Path(path).suffix.lower() not in (".png", ".jpg", ".jpeg"):
+                    raise ValueError(f"{label}.path must end in .png, .jpg or .jpeg")
             for field in ANIMATED & shape.keys():
                 integer(shape[field], f"{label}.{field}", -32768, 32768)
             for key in ("from", "to"):
@@ -115,6 +124,33 @@ def validate(spec: object) -> tuple[int, int]:
         if key in spec and not isinstance(spec[key], str):
             raise ValueError(f"{key} must be a local audio file path")
     return fps, total
+
+
+def embed_images(spec: dict, project_path: Path) -> dict:
+    """Replace local image paths with SVG-safe embedded PNG/JPEG data URIs."""
+    result = copy.deepcopy(spec)
+    for scene in result["scenes"]:
+        for shape in scene["elements"]:
+            if shape["kind"] != "image":
+                continue
+            filename = Path(shape.pop("path")).expanduser()
+            if not filename.is_absolute():
+                filename = project_path.parent / filename
+            if not filename.is_file():
+                raise ValueError(f"image file not found: {filename}")
+            content = filename.read_bytes()
+            if not content or len(content) > 1_000_000:
+                raise ValueError(f"image must be 1..1000000 bytes: {filename}")
+            if filename.suffix.lower() == ".png":
+                if not content.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+                    raise ValueError(f"invalid PNG header: {filename}")
+                mimetype = "image/png"
+            else:
+                if not content.startswith(b"\\xff\\xd8\\xff"):
+                    raise ValueError(f"invalid JPEG header: {filename}")
+                mimetype = "image/jpeg"
+            shape["data"] = f"data:{mimetype};base64," + base64.b64encode(content).decode("ascii")
+    return result
 
 
 def rasterize(pair: tuple[Path, Path]) -> None:
@@ -196,8 +232,14 @@ def main(argv: list[str] | None = None) -> int:
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="ain-video-") as folder:
             frames = Path(folder)
+            embedded = embed_images(spec, source)
+            normalized = json.dumps(embedded, ensure_ascii=False, separators=(",", ":"))
+            if len(normalized.encode("utf-8")) > 7_500_000:
+                raise ValueError("Ain JSON payload exceeds 7.5 MB after embedding images")
+            project_file = frames / "normalized.json"
+            project_file.write_text(normalized, encoding="utf-8")
             environment = os.environ.copy()
-            environment.update(AIN_VIDEO_SPEC=str(source), AIN_VIDEO_FRAMES=str(frames))
+            environment.update(AIN_VIDEO_SPEC=str(project_file), AIN_VIDEO_FRAMES=str(frames))
             command = ["cargo", "run", "--quiet", "--", "run", str(RENDERER)]
             result = subprocess.run(
                 command, cwd=ROOT, env=environment,
