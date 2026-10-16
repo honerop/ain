@@ -27,6 +27,21 @@ The long-term goal is a **large, convenient standard library** with many common 
 
 **Current reality:** AIN is still pre-alpha. Its built-in operations are limited, and many capabilities described here are **goals, not implemented features**.
 
+## Functional-first programming foundation
+
+Ain is functional-first, **not purely functional**: immutable-style data
+transformations and callback combinators are the default, while explicit
+mutable reference cells and controlled side effects remain available.
+
+The native backend now has experimental structured `Data` values with lists,
+records, tuple-style pairs, strict JSON parsing, canonical JSON output,
+`map`, `filter`, `fold`, iteration and state cells. The compiler also
+offers `ainc check-json` for machine-readable diagnostics.
+
+See [the functional data guide](docs/functional-data.md). These are new
+pre-alpha capabilities; more extensive static types, concurrent tasks,
+database support and multimedia APIs remain future work.
+
 ## A first look
 
 ```text
@@ -162,13 +177,14 @@ The **reference route has been verified** with the included example programs. Th
 - Inferred primitive types and checked integer arithmetic.
 - Function declarations without `fn`, with recursion and forward references.
 - Basic string operations and printing in the Rust backend.
+- Experimental structured Data, lists, records, JSON, functional combinators, explicit state cells, and structured compiler diagnostics.
 - Initial typed AIR with direct LLVM IR emission for supported primitives.
 - Three-generation, C-based bootstrap experiment.
 
 **Not yet available**
 
 - Full-featured self-hosted AIR/LLVM compiler.
-- General-purpose collections, records, modules, generics, closures, and ownership analysis.
+- Statically parameterized collections, user-defined record types, modules, generics, closures, and ownership analysis.
 - Complete cross-backend semantic parity or extensive fuzzing.
 - Proven performance advantage over Rust, C, or C++.
 - A stable library/API, packages, or production security sandbox.
