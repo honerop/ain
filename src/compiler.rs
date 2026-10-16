@@ -934,9 +934,11 @@ mod tests {
         assert!(c.rust.contains("ain_i(())"));
     }
     #[test] fn terminal_builtins_are_typed() {
-        assert!(compile("print encode argv _\\nprint asbool field readline _ \\"ok\\"\\n").is_ok());
+        assert!(compile(r#"print encode argv _
+print asbool field readline _ "ok"
+"#).is_ok());
         assert!(compile("print argv 2").is_err());
-        assert!(compile("print readline \\"not unit\\"").is_err());
+        assert!(compile(r#"print readline "not unit""#).is_err());
     }
     #[test] fn forward_reference() { assert!(compile("a x = b x\nb y = + y 1\nprint a 5").is_ok()); }
     #[test] fn strings_and_unicode() { assert!(compile("msg = upper \"zażółć\"\nprint msg").is_ok()); }
