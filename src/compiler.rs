@@ -91,7 +91,7 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "if"|"replace"|"clamp" => 3,
         "run"|"gui"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each" => 2,
         "chat"|"put"|"fold"|"iterate" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"state"|"readstate" => 1,
+        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate" => 1,
         _ => return None,
     })
 }
@@ -277,7 +277,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "asbool" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Bool },
                 "size" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Int },
                 "keys" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
-                "state" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Cell },
+                "cell" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Cell },
                 "readstate" => { types.unify(actual[0].clone(), Ty::Cell, line)?; Ty::Data },
                 "setstate" => { types.unify(actual[0].clone(), Ty::Cell, line)?; types.unify(actual[1].clone(), Ty::Data, line)?; Ty::Unit },
                 "swapstate" => { types.unify(actual[0].clone(), Ty::Cell, line)?; types.unify(actual[1].clone(), Ty::Data, line)?; Ty::Data },
@@ -403,7 +403,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "asbool" => format!("ain_data_asbool({})", a[0]),
                 "size" => format!("ain_data_size({})", a[0]),
                 "keys" => format!("ain_data_keys({})", a[0]),
-                "state" => format!("ain_data_state({})", a[0]),
+                "cell" => format!("ain_data_state({})", a[0]),
                 "readstate" => format!("ain_data_readstate({})", a[0]),
                 "setstate" => format!("ain_data_setstate({}, {})", a[0], a[1]),
                 "swapstate" => format!("ain_data_swapstate({}, {})", a[0], a[1]),

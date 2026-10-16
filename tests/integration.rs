@@ -145,7 +145,7 @@ show x = print asint x
 numbers = push push array _ boxint 3 boxint 4
 print asint iterate "advance" 5 boxint 10
 each "show" numbers
-store = state boxint 7
+store = cell boxint 7
 print asint readstate store
 print asint swapstate store boxint 9
 print asint readstate store
