@@ -697,3 +697,36 @@ print asbool field call "ok"
     assert!(compile("print ffi0 \"lib.so\" 3").is_err());
     assert!(compile("print ffi2 \"lib.so\" \"f\" 1 \"2\"").is_err());
 }
+
+#[test]
+fn native_toml_nested_tables_and_arrays_roundtrip() {
+    let toml = "title = \"Ain #1\"\nactive = true\nnums = [1, 2, 3]\n\n[server]\nport = 8080\nhost = \"localhost\"\n\n[server.auth]\nenabled = false\n";
+    let source = format!("doc = tomlparse {:?}\nprint asbool field doc \"ok\"\nvalue = field doc \"value\"\nprint astext field value \"title\"\nprint asint field field value \"server\" \"port\"\nprint encode field value \"nums\"\nencoded = tomlwrite value\nprint asbool field encoded \"ok\"\nprint asbool field tomlparse astext field encoded \"value\" \"ok\"\n",toml);
+    assert_eq!(execute(&source), "true\nAin #1\n8080\n[1,2,3]\ntrue\ntrue\n");
+}
+#[test]
+fn native_toml_duplicate_and_malformed_values_are_recoverable() {
+    let source = r#"duplicate = tomlparse "a = 1\na = 2"
+print asbool field duplicate "ok"
+wrong = tomlparse "port = inf"
+print asbool field wrong "ok"
+null_record = put record _ "invalid" nil _
+attempt = tomlwrite null_record
+print asbool field attempt "ok"
+"#;
+    assert_eq!(execute(source), "false\nfalse\nfalse\n");
+}
+#[test]
+fn native_toml_escaping_and_deterministic_keys() {
+    let source = r#"data = put put record _ "z" boxint 4 "a" boxstr "quote \" ok"
+written = tomlwrite data
+print astext field written "value"
+"#;
+    assert_eq!(execute(source), "a = \"quote \\\" ok\"\nz = 4\n");
+}
+#[test]
+fn toml_builtin_types_rejected_by_compiler() {
+    assert!(compile("print tomlparse 42").is_err());
+    assert!(compile("print tomlwrite true").is_err());
+    assert!(compile("print tomlwrite record _").is_ok());
+}
