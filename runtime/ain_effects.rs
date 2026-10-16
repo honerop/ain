@@ -3,13 +3,19 @@
 // AIN_RESTRICTED=1 enables capability checks; allowed capabilities are
 // comma-separated in AIN_PERMISSIONS (read,write,env,process,network,
 // ai,browser,desktop). Not an OS-level sandbox.
-fn ain_check_permission(capability: &str) {
-    if std::env::var("AIN_RESTRICTED").as_deref() != Ok("1") { return; }
+fn ain_permission_allowed(capability: &str) -> bool {
+    if std::env::var("AIN_RESTRICTED").as_deref() != Ok("1") { return true; }
     let grants = std::env::var("AIN_PERMISSIONS").unwrap_or_default();
-    if !grants.split(',').map(str::trim)
-        .any(|s| s == capability || s == "all") {
+    grants.split(',').map(str::trim).any(|s| s == capability || s == "all")
+}
+fn ain_check_permission(capability: &str) {
+    if !ain_permission_allowed(capability) {
         panic!("Ain capability denied: {capability}. Set AIN_PERMISSIONS explicitly.");
     }
+}
+fn ain_fs_tryread(path: String) -> Result<String, String> {
+    if !ain_permission_allowed("read") { return Err("Ain capability denied: read".into()); }
+    std::fs::read_to_string(path).map_err(|error| error.to_string())
 }
 fn ain_fs_read(path: String) -> String {
     ain_check_permission("read");
