@@ -427,3 +427,55 @@ print result_get result "fallback"
 "#);
     assert_eq!(execute(&source), "false\nfallback\n");
 }
+
+
+#[test]
+fn structured_http_response_status_headers_and_request_body() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        stream.set_read_timeout(Some(std::time::Duration::from_secs(4))).unwrap();
+        let mut received = [0; 8192];
+        let n = stream.read(&mut received).unwrap();
+        let request = String::from_utf8_lossy(&received[..n]);
+        assert!(request.starts_with("POST /echo HTTP/1.1"), "{request}");
+        assert!(request.contains("X-Token: secret"), "{request}");
+        assert!(request.contains("Content-Length: 5"), "{request}");
+        stream.write_all(b"HTTP/1.1 201 Created\r\nX-Response: success\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok").unwrap();
+    });
+    let source = format!(r#"headers = put record _ "X-Token" boxstr "secret"
+options = put put record _ "headers" headers "body" boxstr "hello"
+response = httprequest "POST" "http://127.0.0.1:{port}/echo" options
+print asbool field response "ok"
+details = field response "value"
+print asint field details "status"
+print astext field field details "headers" "x-response"
+print astext field details "body"
+"#);
+    assert_eq!(execute(&source), "true\n201\nsuccess\nok\n");
+    server.join().unwrap();
+}
+#[test]
+fn structured_http_options_and_header_injection_are_rejected() {
+    let source = r#"options = put record _ "headers" put record _ "X-Unsafe" boxstr "a\nInjected: b"
+a = httprequest "GET" "https://example.com" options
+print asbool field a "ok"
+print astext field a "error"
+b = httprequest "TRACE" "https://example.com" record _
+print asbool field b "ok"
+c = httprequest "GET" "file:///etc/passwd" record _
+print asbool field c "ok"
+"#;
+    let result = execute(source);
+    assert!(result.contains("false\nUnsafe HTTP header value\nfalse\nfalse\n"), "{result}");
+}
+#[test]
+fn structured_http_types_are_checked() {
+    assert!(compile("print httprequest \"GET\" \"https://example.com\" record _").is_ok());
+    assert!(compile("print httprequest 10 \"https://example.com\" record _").is_err());
+    assert!(compile("print httprequest \"GET\" 9 record _").is_err());
+    assert!(compile("print httprequest \"GET\" \"https://example.com\" false").is_err());
+}
