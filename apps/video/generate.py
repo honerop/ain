@@ -142,11 +142,11 @@ def embed_images(spec: dict, project_path: Path) -> dict:
             if not content or len(content) > 1_000_000:
                 raise ValueError(f"image must be 1..1000000 bytes: {filename}")
             if filename.suffix.lower() == ".png":
-                if not content.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+                if not content.startswith(b"\x89PNG\r\n\x1a\n"):
                     raise ValueError(f"invalid PNG header: {filename}")
                 mimetype = "image/png"
             else:
-                if not content.startswith(b"\\xff\\xd8\\xff"):
+                if not content.startswith(b"\xff\xd8\xff"):
                     raise ValueError(f"invalid JPEG header: {filename}")
                 mimetype = "image/jpeg"
             shape["data"] = f"data:{mimetype};base64," + base64.b64encode(content).decode("ascii")
