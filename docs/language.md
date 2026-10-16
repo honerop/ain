@@ -132,3 +132,17 @@ the language runtime rather than each application repository.
 All three features are experimental, not yet supported by AIR/LLVM or the
 self-hosted C backend, and are unsupported on platforms lacking their
 dependencies. The GUI event loop currently blocks during network operations.
+
+## Responsive GTK4 applications in Ain
+
+The native backend supports `guiupdate TITLE LAYOUT` to render a GTK4 window
+without blocking the Ain main thread and `guitick MILLISECONDS` to pump GTK
+input events while asynchronous `spawn` tasks run. `guitick` accepts 0-250ms.
+It returns `tick\\n` when no user event is ready or the normal `action\\ninput`
+format used by `gui`. Calls must occur on the GTK main thread.
+
+`guiupdate` rerenders the window and resets pending events; prefer `guitick`
+while a task runs to preserve the user's partly typed input. Normal `gui`
+remains the simple blocking convenience API. These operations do not magically
+make synchronous `chat` calls nonblocking; spawn a typed Data callback that
+invokes the provider, then poll its task with `ready` from a `guitick` loop.
