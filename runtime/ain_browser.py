@@ -90,7 +90,18 @@ def serve():
                     context.route("**/*", safe_route)
                     page = context.new_page()
                     page.set_default_timeout(10000)
-                if op == "open":
+                if op == "selftest":
+                    page.set_content("""<!doctype html><html><head><title>Ain browser check</title></head>
+                        <body><h1 id='state'>Ready</h1><input id='content'>
+                        <button id='apply' onclick="document.querySelector('#state').textContent =
+                          document.querySelector('#content').value">Apply</button>
+                        <a href='https://example.com'>Sample link</a></body></html>""")
+                    page.locator("#content").fill("Clicked")
+                    page.locator("#apply").click()
+                    assert "Clicked" in text_snapshot(page)
+                    assert "Sample link" in link_snapshot(page)
+                    result = "browser smoke passed"
+                elif op == "open":
                     page.goto(validate_url(argument), wait_until="domcontentloaded", timeout=30000)
                     result = text_snapshot(page)
                 elif op == "read":
