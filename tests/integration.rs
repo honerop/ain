@@ -590,3 +590,71 @@ fn media_exports_report_bad_geometry_and_type_errors() {
     assert!(compile("svgwrite \"x.svg\" false").is_err());
     assert!(compile("gltfwrite \"x.gltf\" true").is_err());
 }
+
+#[test]
+fn native_tcp_client_works_on_loopback_and_returns_recoverable_data() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let worker = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = String::new();
+        stream.read_to_string(&mut request).unwrap();
+        assert_eq!(request, "Hello Ain");
+        stream.write_all(b"PONG").unwrap();
+    });
+    let source = format!("reply = tcprequest {:?} \"Hello Ain\"\nprint asbool field reply \"ok\"\nprint astext field reply \"value\"\n", addr.to_string());
+    assert_eq!(execute(&source), "true\nPONG\n");
+    worker.join().unwrap();
+}
+#[test]
+fn http_one_shot_server_responds_to_local_get() {
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::time::Duration;
+    let probe = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = probe.local_addr().unwrap().port();
+    drop(probe);
+    let source = format!("result = httpserveonce {port} \"Hello from Ain\"\nprint asbool field result \"ok\"\nprint astext field field result \"value\" \"path\"\n");
+    let generated = compile(&source).unwrap().rust;
+    let dir = std::env::temp_dir().join(format!("ain-http-server-{}-{}", std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+    fs::create_dir_all(&dir).unwrap();
+    let rs = dir.join("main.rs");
+    let binary = dir.join("server");
+    fs::write(&rs, generated).unwrap();
+    let built = Command::new("rustc").args(["--edition=2021", "-O"])
+        .arg(&rs).arg("-o").arg(&binary).output().unwrap();
+    assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
+    let mut child = Command::new(&binary)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped()).spawn().unwrap();
+    let addr = format!("127.0.0.1:{port}");
+    let mut connected = None;
+    for _ in 0..100 {
+        if let Ok(stream) = TcpStream::connect(&addr) {
+            connected = Some(stream);
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let mut stream = connected.expect("local HTTP server started");
+    stream.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+    stream.write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n").unwrap();
+    let mut reply = String::new();
+    stream.read_to_string(&mut reply).unwrap();
+    assert!(reply.contains("HTTP/1.1 200 OK"), "{reply}");
+    assert!(reply.ends_with("Hello from Ain"), "{reply}");
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8(output.stdout).unwrap(), "true\n/test\n");
+    fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn tcp_and_server_type_checks() {
+    assert!(compile("print tcprequest \"127.0.0.1:8080\" \"payload\"").is_ok());
+    assert!(compile("print httpserveonce 8080 \"OK\"").is_ok());
+    assert!(compile("print tcprequest 7 \"payload\"").is_err());
+    assert!(compile("print httpserveonce \"port\" \"OK\"").is_err());
+}
