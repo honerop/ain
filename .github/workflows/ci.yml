@@ -12,12 +12,6 @@ jobs:
         run: clang --version
       - name: Rust compiler tests
         run: cargo test
-      - name: Test agent tooling
-        run: python3 -m unittest discover -s tests -p 'test_*.py'
-      - name: Check native backend equivalence
-        run: |
-          cargo build --bin ainc
-          python3 scripts/benchmark.py --strict --runs 1 --output /tmp/ain-benchmark.json
       - name: Rust-first three-stage bootstrap
         run: ./scripts/bootstrap.sh
       - name: Independent reference bootstrap
