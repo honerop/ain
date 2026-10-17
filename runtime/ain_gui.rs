@@ -36,6 +36,11 @@ unsafe extern "C" {
     fn gtk_label_set_xalign(label: *mut c_void, alignment: f32);
     fn gtk_label_set_wrap(label: *mut c_void, wrap: i32);
     fn gtk_entry_new() -> *mut c_void;
+    fn gtk_drop_down_new_from_strings(strings: *const *const c_char) -> *mut c_void;
+    fn gtk_drop_down_get_selected(drop_down: *mut c_void) -> u32;
+    fn gtk_drop_down_set_selected(drop_down: *mut c_void, position: u32);
+    fn gtk_window_get_focus(window: *mut c_void) -> *mut c_void;
+    fn gtk_widget_is_ancestor(widget: *mut c_void, ancestor: *mut c_void) -> i32;
     fn gtk_entry_set_placeholder_text(entry: *mut c_void, text: *const c_char);
     fn gtk_editable_get_text(entry: *mut c_void) -> *const c_char;
     fn gtk_editable_set_text(entry: *mut c_void, text: *const c_char);
@@ -89,7 +94,24 @@ unsafe extern "C" {
 
 
 const AIN_CYAN_CSS: &str = r#"
-.ain-theme-cyan { background: #101821; color: #e0ebf3; }
+.ain-theme-cyan { background: #0d1520; color: #e2edf4; }
+.ain-theme-cyan .ain-toolbar {
+    padding: 12px; background: #152331; border: 1px solid #293e4f; border-radius: 14px;
+}
+.ain-theme-cyan .ain-select-group { margin: 0; }
+.ain-theme-cyan .ain-select-label { color: #a5bdcd; font-size: 11px; font-weight: 700; letter-spacing: 0.7px; }
+.ain-theme-cyan .ain-select {
+    background: #1a3041; border: 1px solid #38576a; border-radius: 10px;
+    color: #e7f3f7; padding: 4px 10px; min-height: 36px;
+}
+.ain-theme-cyan .ain-select:hover { background: #234052; border-color: #55b9ce; }
+.ain-theme-cyan .ain-select:focus { outline: 2px solid #4bd2e4; outline-offset: 1px; }
+.ain-theme-cyan .ain-toolbar .ain-provider { min-height: 36px; margin-top: 18px; }
+.ain-theme-cyan .ain-message { margin-left: 5px; margin-right: 5px; }
+.ain-theme-cyan .ain-composer { background: #182939; color: #eff9fb; border: 1px solid #37566b; padding: 8px 12px; }
+.ain-theme-cyan .ain-primary:hover { background: #80ecf4; }
+.ain-theme-cyan .ain-provider { background: #1b2e3e; border: 1px solid #385267; color: #d7ebf5; padding: 8px 12px; }
+.ain-theme-cyan .ain-provider:hover { background: #264457; }
 .ain-theme-cyan .ain-header { font-size: 27px; font-weight: 800; color: #70e0ed; }
 .ain-theme-cyan .ain-subtitle { color: #93aabb; font-size: 12px; }
 .ain-theme-cyan .ain-transcript-frame {
@@ -121,6 +143,7 @@ struct AinGui {
     entry: *mut c_void,
     scroll: *mut c_void,
     transcript: *mut c_void,
+    selects: Vec<*mut c_void>,
     last_g: bool,
     vim: bool,
     insert_mode: bool,
@@ -128,6 +151,11 @@ struct AinGui {
 struct AinGuiButton {
     gui: *mut AinGui,
     id: String,
+}
+struct AinGuiSelect {
+    gui: *mut AinGui,
+    id: String,
+    values: Vec<String>,
 }
 thread_local! {
     static AIN_GUI: Cell<*mut AinGui> = const { Cell::new(ptr::null_mut()) };
@@ -147,6 +175,15 @@ unsafe extern "C" fn ain_gui_button_destroy(data: *mut c_void, _closure: *mut c_
 unsafe extern "C" fn ain_gui_button_clicked(_button: *mut c_void, data: *mut c_void) {
     let command = &*(data as *mut AinGuiButton);
     ain_gui_event(command.gui, &command.id);
+}
+unsafe extern "C" fn ain_gui_select_destroy(data: *mut c_void, _closure: *mut c_void) {
+    drop(Box::from_raw(data as *mut AinGuiSelect));
+}
+unsafe extern "C" fn ain_gui_select_changed(dropdown: *mut c_void, _param: *mut c_void, data: *mut c_void) {
+    let select = &*(data as *mut AinGuiSelect);
+    if let Some(value) = select.values.get(gtk_drop_down_get_selected(dropdown) as usize) {
+        (*select.gui).event = Some(format!("select:{}\n{}", select.id, value));
+    }
 }
 unsafe extern "C" fn ain_gui_enter(_entry: *mut c_void, data: *mut c_void) {
     ain_gui_event(data as *mut AinGui, "send");
@@ -176,6 +213,12 @@ unsafe extern "C" fn ain_gui_key(_controller: *mut c_void, key: u32,
     // In insert mode the GTK editor gets *every* printable character,
     // including i, j, k, g, G and ':'. No Vim shortcut runs here.
     if gui.insert_mode {
+        // A focused drop-down owns its keyboard input. The Vim composer must
+        // not steal arrows, letters, or selection keys from native controls.
+        let focus = gtk_window_get_focus(gui.window);
+        if !focus.is_null() && gui.selects.iter().any(|&select|
+            select == focus || gtk_widget_is_ancestor(focus, select) != 0
+        ) { return 0; }
         if !gui.entry.is_null() && gtk_widget_has_focus(gui.entry) == 0 {
             // A window can receive early keystrokes before GTK finishes giving
             // its entry focus. Do not lose the first typed character.
@@ -239,7 +282,8 @@ unsafe fn ain_gui_create() -> *mut AinGui {
     gtk_window_set_default_size(window, 960, 700);
     let gui = Box::into_raw(Box::new(AinGui {
         window, event: None, entry: ptr::null_mut(), scroll: ptr::null_mut(),
-        transcript: ptr::null_mut(), last_g: false, vim: false, insert_mode: true,
+        transcript: ptr::null_mut(), selects: Vec::new(),
+        last_g: false, vim: false, insert_mode: true,
     }));
     g_signal_connect_data(window, ain_gui_c("close-request").as_ptr(),
         ain_gui_close as *const c_void, gui.cast(), ptr::null(), 0);
@@ -255,6 +299,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
     (*gui).entry = ptr::null_mut();
     (*gui).scroll = ptr::null_mut();
     (*gui).transcript = ptr::null_mut();
+    (*gui).selects.clear();
     (*gui).vim = false;
     (*gui).insert_mode = true;
     (*gui).last_g = false;
@@ -272,12 +317,63 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
     gtk_flow_box_set_row_spacing(buttons, 8);
     gtk_flow_box_set_column_spacing(buttons, 8);
     let mut message_list: *mut c_void = ptr::null_mut();
+    let mut toolbar: *mut c_void = ptr::null_mut();
     for line in spec.lines() {
-        let mut tokens = line.splitn(3, '\t');
+        let mut tokens = line.splitn(5, '\t');
         let kind = tokens.next().unwrap_or("");
         let a = tokens.next().unwrap_or("");
         let b = tokens.next().unwrap_or("");
+        let c = tokens.next().unwrap_or("");
+        let d = tokens.next().unwrap_or("");
         match kind {
+            "toolbar" => {
+                let bar = gtk_box_new(0, 12);
+                gtk_widget_add_css_class(bar, ain_gui_c("ain-toolbar").as_ptr());
+                gtk_widget_set_hexpand(bar, 1);
+                gtk_box_append(root, bar);
+                toolbar = bar;
+            }
+            "endtoolbar" => toolbar = ptr::null_mut(),
+            "select" => {
+                // select<TAB>id<TAB>label<TAB>selected-value<TAB>Label=value|Label=value
+                // Values are stable Ain identifiers, never derived from GTK labels.
+                if a.is_empty() || a.len() > 64 { continue; }
+                let options: Vec<(String, String)> = d.split('|').take(64)
+                    .filter_map(|item| {
+                        let (label, value) = item.split_once('=').unwrap_or((item, item));
+                        if label.is_empty() || value.is_empty()
+                            || label.len() > 100 || value.len() > 150 { None }
+                        else { Some((label.to_string(), value.to_string())) }
+                    }).collect();
+                if options.is_empty() { continue; }
+                let labels: Vec<CString> = options.iter().map(|(label, _)| ain_gui_c(label)).collect();
+                let mut label_ptrs: Vec<*const c_char> = labels.iter().map(|label| label.as_ptr()).collect();
+                label_ptrs.push(ptr::null());
+                let dropdown = gtk_drop_down_new_from_strings(label_ptrs.as_ptr());
+                let selected = options.iter().position(|(_, value)| value == c).unwrap_or(0);
+                gtk_drop_down_set_selected(dropdown, selected as u32);
+                gtk_widget_add_css_class(dropdown, ain_gui_c("ain-select").as_ptr());
+                gtk_widget_set_hexpand(dropdown, 1);
+                gtk_widget_set_size_request(dropdown, 180, -1);
+                let group = gtk_box_new(1, 5);
+                gtk_widget_add_css_class(group, ain_gui_c("ain-select-group").as_ptr());
+                gtk_widget_set_hexpand(group, 1);
+                let caption = gtk_label_new(ain_gui_c(b).as_ptr());
+                gtk_label_set_xalign(caption, 0.0);
+                gtk_widget_add_css_class(caption, ain_gui_c("ain-select-label").as_ptr());
+                gtk_box_append(group, caption);
+                gtk_box_append(group, dropdown);
+                let selection = Box::into_raw(Box::new(AinGuiSelect {
+                    gui, id: a.to_string(),
+                    values: options.into_iter().map(|(_, value)| value).collect(),
+                }));
+                // Connecting after set_selected avoids firing on initial render.
+                g_signal_connect_data(dropdown, ain_gui_c("notify::selected").as_ptr(),
+                    ain_gui_select_changed as *const c_void, selection.cast(),
+                    ain_gui_select_destroy as *const c_void, 0);
+                (*gui).selects.push(dropdown);
+                gtk_box_append(if toolbar.is_null() { root } else { toolbar }, group);
+            },
             "conversation" => {
                 // Messages are real GTK widgets, not a giant flattened text field.
                 let scroll = gtk_scrolled_window_new();
@@ -375,6 +471,8 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                     ain_gui_button_clicked as *const c_void, action.cast(), ain_gui_button_destroy as *const c_void, 0);
                 if kind == "action" {
                     gtk_box_append(root, button);
+                } else if !toolbar.is_null() {
+                    gtk_box_append(toolbar, button);
                 } else {
                     gtk_flow_box_insert(buttons, button, -1);
                 }
