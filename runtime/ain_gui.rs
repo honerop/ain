@@ -99,7 +99,6 @@ const AIN_CYAN_CSS: &str = r#"
     background: #152331; border: 1px solid #293e4f; border-radius: 14px;
     padding: 12px;
 }
-.ain-theme-cyan .ain-row { border-spacing: 0; }
 .ain-theme-cyan .ain-heading { font-size: 18px; font-weight: 700; color: #e2edf4; }
 .ain-theme-cyan .ain-muted { color: #93aabb; font-size: 12px; }
 .ain-theme-cyan .ain-toolbar {
@@ -153,6 +152,7 @@ struct AinGui {
     transcript: *mut c_void,
     selects: Vec<*mut c_void>,
     last_g: bool,
+    last_user_count: usize,
     vim: bool,
     insert_mode: bool,
 }
@@ -163,21 +163,23 @@ struct AinGuiScroll {
     scroll: *mut c_void,
     value: f64,
     stick_to_bottom: bool,
+    restored: Cell<bool>,
 }
 unsafe extern "C" fn ain_gui_scroll_destroy(data: *mut c_void, _closure: *mut c_void) {
     drop(Box::from_raw(data as *mut AinGuiScroll));
 }
 unsafe extern "C" fn ain_gui_scroll_changed(adjustment: *mut c_void, data: *mut c_void) {
     let saved = &*(data as *mut AinGuiScroll);
-    if (*saved.gui).scroll != saved.scroll { return; }
+    if (*saved.gui).scroll != saved.scroll || saved.restored.get() { return; }
     let bottom = (gtk_adjustment_get_upper(adjustment) - gtk_adjustment_get_page_size(adjustment)).max(0.0);
     let target = if saved.stick_to_bottom { bottom } else { saved.value.min(bottom) };
     gtk_adjustment_set_value(adjustment, target.max(0.0));
+    if bottom > 0.0 { saved.restored.set(true); }
 }
 unsafe fn ain_gui_restore_scroll(gui: *mut AinGui, scroll: *mut c_void, old: Option<(f64, bool)>) {
     let (value, stick_to_bottom) = old.unwrap_or((0.0, true));
     let adjustment = gtk_scrolled_window_get_vadjustment(scroll);
-    let state = Box::into_raw(Box::new(AinGuiScroll { gui, scroll, value, stick_to_bottom }));
+    let state = Box::into_raw(Box::new(AinGuiScroll { gui, scroll, value, stick_to_bottom, restored: Cell::new(false) }));
     g_signal_connect_data(adjustment, ain_gui_c("changed").as_ptr(),
         ain_gui_scroll_changed as *const c_void, state.cast(),
         ain_gui_scroll_destroy as *const c_void, 0);
@@ -342,7 +344,7 @@ unsafe fn ain_gui_create() -> *mut AinGui {
     let gui = Box::into_raw(Box::new(AinGui {
         window, style_provider, event: None, entry: ptr::null_mut(), scroll: ptr::null_mut(),
         transcript: ptr::null_mut(), selects: Vec::new(),
-        last_g: false, vim: false, insert_mode: true,
+        last_g: false, last_user_count: 0, vim: false, insert_mode: true,
     }));
     g_signal_connect_data(window, ain_gui_c("close-request").as_ptr(),
         ain_gui_close as *const c_void, gui.cast(), ptr::null(), 0);
@@ -355,11 +357,16 @@ unsafe fn ain_gui_create() -> *mut AinGui {
 }
 unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
     gtk_window_set_title((*gui).window, ain_gui_c(title).as_ptr());
+    // A newly submitted user message should take the transcript to the end,
+    // even when the user was previously reading older messages.
+    let user_count = spec.lines().filter(|line| line.starts_with("message\tuser\t")).count();
+    let sent_message = user_count > (*gui).last_user_count;
+    (*gui).last_user_count = user_count;
     let old_scroll = if (*gui).scroll.is_null() { None } else {
         let adjustment = gtk_scrolled_window_get_vadjustment((*gui).scroll);
         let value = gtk_adjustment_get_value(adjustment);
         let bottom = (gtk_adjustment_get_upper(adjustment) - gtk_adjustment_get_page_size(adjustment)).max(0.0);
-        Some((value, bottom - value <= 48.0))
+        Some((value, sent_message || bottom - value <= 48.0))
     };
     // css<TAB>GTK CSS, with optional escaped newlines. GTK CSS is a subset
     // of browser CSS, but it supports classes, colors, padding and borders.
@@ -465,7 +472,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_widget_set_vexpand(spacer, 1);
                 ain_gui_append(*containers.last().unwrap(), spacer);
             }
-            "css" => {} ,
+            "css" => {},
             "select" => {
                 // select<TAB>id<TAB>label<TAB>selected-value<TAB>Label=value|Label=value
                 // Values are stable Ain identifiers, never derived from GTK labels.
@@ -598,7 +605,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
             "button" | "action" => {
                 if a.len() > 64 || a.is_empty() { continue; }
                 let button = gtk_button_new_with_label(ain_gui_c(b).as_ptr());
-                if kind == "action" { gtk_widget_set_hexpand(button, 1); }
+                if kind == "action" && containers.len() == 1 { gtk_widget_set_hexpand(button, 1); }
                 gtk_widget_add_css_class(button, ain_gui_c(if a == "send" { "ain-primary" } else { "ain-provider" }).as_ptr());
                 let action = Box::into_raw(Box::new(AinGuiButton { gui, id: a.to_string() }));
                 g_signal_connect_data(button, ain_gui_c("clicked").as_ptr(),
