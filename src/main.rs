@@ -137,7 +137,12 @@ fn run() -> Result<(), String> {
     let code = if llvm {compile_llvm(&source).map_err(|e| e.to_string())?} else {compile(&source).map_err(|e| e.to_string())?.rust};
     let tmp = work_dir()?;
     let source = tmp.join(if llvm {"program.ll"}else{"program.rs"});
-    let binary = if matches!(action.as_str(), "build-llvm"|"build") {output.unwrap_or_else(|| source_file.with_extension(""))} else {tmp.join("program")};
+    // Windows executables need a .exe suffix for both 'run' and default 'build'.
+    // Explicit -o paths remain under the caller's control.
+    let default_binary = if cfg!(windows) { source_file.with_extension("exe") } else { source_file.with_extension("") };
+    let binary = if matches!(action.as_str(), "build-llvm"|"build") {
+        output.unwrap_or(default_binary)
+    } else { tmp.join(format!("program{}", env::consts::EXE_SUFFIX)) };
     let result = (|| {
         fs::write(&source, code).map_err(|e| e.to_string())?;
         if llvm {clang(&source,&binary)?;} else {rustc(&source,&binary)?;}
