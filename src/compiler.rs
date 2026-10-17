@@ -246,13 +246,22 @@ impl Ty {
             Ty::Tuple3(a,b,c) => format!("({}, {}, {})",a.rust(),b.rust(),c.rust()),
             Ty::Option(inner) => format!("Option<{}>", inner.rust()),
             Ty::Result(inner) => format!("Result<{}, String>", inner.rust()),
-            Ty::Unit => "()".into(), Ty::Var(_) => unreachable!("unresolved type"),
+            Ty::Unit => "()".into(), Ty::Var(i) => format!("G{i}"),
+        }
+    }
+    fn variables(&self, into: &mut std::collections::BTreeSet<usize>) {
+        match self {
+            Ty::Var(id) => {into.insert(*id);}
+            Ty::List(x)|Ty::Map(x)|Ty::Option(x)|Ty::Result(x) => x.variables(into),
+            Ty::Tuple(a,b) => {a.variables(into);b.variables(into);}
+            Ty::Tuple3(a,b,c) => {a.variables(into);b.variables(into);c.variables(into);}
+            _ => {}
         }
     }
 }
-struct Types { substitutions: Vec<Option<Ty>> }
+struct Types { substitutions: Vec<Option<Ty>>, generalized: HashSet<String> }
 impl Types {
-    fn new() -> Self { Self { substitutions: Vec::new() } }
+    fn new() -> Self { Self { substitutions: Vec::new(), generalized: HashSet::new() } }
     fn fresh(&mut self) -> Ty { let id = self.substitutions.len(); self.substitutions.push(None); Ty::Var(id) }
     fn resolve(&mut self, ty: Ty) -> Ty {
         match ty {
@@ -270,6 +279,28 @@ impl Types {
             Ty::Result(inner) => Ty::Result(Box::new(self.resolve(*inner))),
             t => t,
         }
+    }
+    fn instantiate(&mut self, sig: &Sig) -> Sig {
+        fn freshen(t: Ty, state: &mut Types, map: &mut HashMap<usize, Ty>) -> Ty {
+            match t {
+                Ty::Var(id) => map.entry(id).or_insert_with(||state.fresh()).clone(),
+                Ty::List(x) => Ty::List(Box::new(freshen(*x,state,map))),
+                Ty::Map(x) => Ty::Map(Box::new(freshen(*x,state,map))),
+                Ty::Option(x) => Ty::Option(Box::new(freshen(*x,state,map))),
+                Ty::Result(x) => Ty::Result(Box::new(freshen(*x,state,map))),
+                Ty::Tuple(a,b) => Ty::Tuple(Box::new(freshen(*a,state,map)),Box::new(freshen(*b,state,map))),
+                Ty::Tuple3(a,b,c) => Ty::Tuple3(Box::new(freshen(*a,state,map)),Box::new(freshen(*b,state,map)),Box::new(freshen(*c,state,map))),
+                other => other,
+            }
+        }
+        let mut map=HashMap::new();
+        let mut args=Vec::new();
+        for t in sig.args.iter().cloned() {
+            let resolved=self.resolve(t);
+            args.push(freshen(resolved,self,&mut map));
+        }
+        let result=self.resolve(sig.ret.clone());
+        Sig {args,ret:freshen(result,self,&mut map)}
     }
     fn occurs(&mut self, id: usize, ty: Ty) -> bool {
         match self.resolve(ty) {
@@ -334,8 +365,9 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 let Expr::Str(fn_name) = &args[0] else {
                     return Err(err(line, "list callbacks require a quoted function name"));
                 };
-                let sig = functions.get(fn_name).ok_or_else(||
+                let original = functions.get(fn_name).ok_or_else(||
                     err(line, format!("unknown list callback '{}'", fn_name)))?;
+                let sig = if types.generalized.contains(fn_name) {types.instantiate(original)} else {original.clone()};
                 let arity = if name == "listfold" { 2 } else { 1 };
                 if sig.args.len() != arity {
                     return Err(err(line, format!("list callback '{}' must take {} parameter(s)", fn_name, arity)));
@@ -363,8 +395,9 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 let Expr::Str(function_name) = &args[0] else {
                     return Err(err(line, "functional operation requires a quoted function name as its first argument"));
                 };
-                let signature = functions.get(function_name).ok_or_else(|| 
+                let original = functions.get(function_name).ok_or_else(|| 
                     err(line, format!("unknown function '{}' in {}", function_name, name)))?;
+                let signature = if types.generalized.contains(function_name) {types.instantiate(original)} else {original.clone()};
                 let expected_arity = if name == "fold" { 2 } else { 1 };
                 if signature.args.len() != expected_arity {
                     return Err(err(line, format!("{} callback must take {} argument(s)", name, expected_arity)));
@@ -383,7 +416,8 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 return Ok(if name == "each" { Ty::Unit } else if name == "spawn" { Ty::Task } else { Ty::Data });
             }
             let actual: Vec<Ty> = args.iter().map(|e| check_expr(e, line, env, functions, types)).collect::<Result<_, _>>()?;
-            if let Some(sig) = functions.get(name) {
+            if let Some(original) = functions.get(name) {
+                let sig = if types.generalized.contains(name) {types.instantiate(original)} else {original.clone()};
                 for (a, expected) in actual.into_iter().zip(&sig.args) { types.unify(a, expected.clone(), line)?; }
                 return Ok(sig.ret.clone());
             }
@@ -578,48 +612,94 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
     }
 }
 
+// Dependency groups prevent a call to a forward-declared polymorphic function
+// from accidentally fixing its type for all uses.
+fn function_dependencies(expr:&Expr,names:&HashSet<String>,out:&mut HashSet<String>) {
+    if let Expr::Call(name,args)=expr {
+        if names.contains(name) {out.insert(name.clone());}
+        if matches!(name.as_str(),"listmap"|"listfilter"|"listfold"|"map"|"filter"|"fold"|"iterate"|"each"|"spawn") {
+            if let Some(Expr::Str(callback))=args.first() {
+                if names.contains(callback) {out.insert(callback.clone());}
+            }
+        }
+        for arg in args {function_dependencies(arg,names,out);}
+    }
+}
+fn reaches(from:&str,target:&str,graph:&HashMap<String,HashSet<String>>,visited:&mut HashSet<String>)->bool {
+    if from==target {return true;}
+    if !visited.insert(from.to_string()) {return false;}
+    graph.get(from).is_some_and(|deps|deps.iter().any(|dep|reaches(dep,target,graph,visited)))
+}
 fn check(program: Program) -> Result<Checked, CompileError> {
-    let mut types = Types::new();
-    let mut functions = HashMap::<String, Sig>::new();
+    let mut types=Types::new();
+    let mut functions=HashMap::<String,Sig>::new();
+    let names=program.functions.iter().map(|f|f.name.clone()).collect::<Vec<_>>();
     for f in &program.functions {
-        let args = f.args.iter().map(|p| if p == "_" { Ty::Unit } else { types.fresh() }).collect();
-        let ret = types.fresh();
-        functions.insert(f.name.clone(), Sig { args, ret });
+        let args=f.args.iter().map(|p|if p=="_" {Ty::Unit}else{types.fresh()}).collect();
+        functions.insert(f.name.clone(),Sig {args,ret:types.fresh()});
     }
-    for f in &program.functions {
-        let signature = functions.get(&f.name).unwrap().clone();
-        let env = f.args.iter().zip(&signature.args).filter(|(name,_)| name.as_str() != "_").map(|(name, ty)| (name.clone(), ty.clone())).collect();
-        let found = check_expr(&f.expr, f.line, &env, &functions, &mut types)?;
-        types.unify(found, signature.ret, f.line)?;
+    let known=names.iter().cloned().collect::<HashSet<_>>();
+    let graph=program.functions.iter().map(|f|{
+        let mut deps=HashSet::new();
+        function_dependencies(&f.expr,&known,&mut deps);
+        (f.name.clone(),deps)
+    }).collect::<HashMap<_,_>>();
+    let mut remaining=known.clone();
+    let mut groups=Vec::<Vec<String>>::new();
+    for name in &names {
+        if !remaining.contains(name) {continue;}
+        let group=names.iter().filter(|other|{
+            remaining.contains(*other)
+            && reaches(name,other,&graph,&mut HashSet::new())
+            && reaches(other,name,&graph,&mut HashSet::new())
+        }).cloned().collect::<Vec<_>>();
+        for member in &group {remaining.remove(member);}
+        groups.push(group);
     }
-    let mut values = HashMap::<String, Ty>::new();
+    let mut completed=HashSet::<String>::new();
+    while completed.len()<names.len() {
+        let group=groups.iter().find(|group|{
+            group.iter().any(|name|!completed.contains(name))
+            &&group.iter().all(|name|graph[name].iter().all(|dep|
+                group.contains(dep)||completed.contains(dep)))
+        }).ok_or_else(||err(1,"internal error: generic dependency ordering"))?;
+        for name in group {
+            let f=program.functions.iter().find(|f|&f.name==name).unwrap();
+            let sig=functions.get(name).unwrap().clone();
+            let env=f.args.iter().zip(&sig.args).filter(|(p,_)|p.as_str()!="_")
+                .map(|(p,ty)|(p.clone(),ty.clone())).collect();
+            let found=check_expr(&f.expr,f.line,&env,&functions,&mut types)?;
+            types.unify(found,sig.ret,f.line)?;
+        }
+        // Recursive definitions share monomorphic signatures internally.
+        // Outside this group, every call gets a fresh scheme instantiation.
+        for name in group {
+            completed.insert(name.clone());
+            types.generalized.insert(name.clone());
+        }
+    }
+    let mut values=HashMap::<String,Ty>::new();
     for item in &program.items {
         match item {
-            Item::Value { name, expr, line } => {
-                let inferred = check_expr(expr, *line, &values, &functions, &mut types)?;
-                values.insert(name.clone(), inferred);
+            Item::Value {name,expr,line}=>{
+                let ty=check_expr(expr,*line,&values,&functions,&mut types)?;
+                values.insert(name.clone(),ty);
             }
-            Item::Statement { expr, line } => {
-                check_expr(expr, *line, &values, &functions, &mut types)?;
-            }
+            Item::Statement {expr,line}=>{check_expr(expr,*line,&values,&functions,&mut types)?;}
         }
     }
     for f in &program.functions {
-        let sig = functions.get_mut(&f.name).unwrap();
-        for (i, t) in sig.args.iter_mut().enumerate() {
-            *t = types.concrete(t.clone(), f.line, &format!("parameter {} of '{}'", i + 1, f.name))?;
-        }
-        sig.ret = types.concrete(sig.ret.clone(), f.line, &format!("return of '{}'", f.name))?;
+        let sig=functions.get_mut(&f.name).unwrap();
+        for arg in &mut sig.args {*arg=types.resolve(arg.clone());}
+        sig.ret=types.resolve(sig.ret.clone());
     }
     for item in &program.items {
-        if let Item::Value {name, line, ..} = item {
-            let t = values.get_mut(name).unwrap();
-            *t = types.concrete(t.clone(), *line, &format!("value '{name}'"))?;
+        if let Item::Value{name,line,..}=item {
+            let t=values.get_mut(name).unwrap();
+            *t=types.concrete(t.clone(),*line,&format!("value '{name}'"))?;
         }
     }
-    // Rechecking resolved expression types ensures print/str/== operands aren't unspecialized.
-    // All function parameters and top-level values now have concrete types.
-    Ok(Checked { program, function_types: functions, value_types: values })
+    Ok(Checked {program,function_types:functions,value_types:values})
 }
 
 fn safe_id(name: &str) -> String {
@@ -635,7 +715,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
         Expr::Unit => "()".into(),
         Expr::Var(w) => {
             let ty = local.get(w).or_else(|| global.get(w)).expect("checked variable");
-            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Tuple(_,_) | Ty::Tuple3(_,_,_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
+            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Tuple(_,_) | Ty::Tuple3(_,_,_) | Ty::Var(_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
         }
         Expr::Call(name, args) => {
             if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
@@ -817,6 +897,25 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
     }
 }
 
+fn requires_generic_trait(expr:&Expr,params:&[String],args:&[Ty],id:usize,operations:&[&str])->bool {
+    fn seen(t:&Expr,params:&[String],args:&[Ty],id:usize)->bool {
+        match t {
+            Expr::Var(name)=>params.iter().zip(args).any(|(p,ty)|{
+                let mut vars=std::collections::BTreeSet::new();
+                ty.variables(&mut vars);
+                name==p&&vars.contains(&id)
+            }),
+            Expr::Call(_,xs)=>xs.iter().any(|x|seen(x,params,args,id)),
+            _=>false,
+        }
+    }
+    match expr {
+        Expr::Call(name,operands)=>(operations.contains(&name.as_str())
+            &&operands.iter().any(|a|seen(a,params,args,id)))
+            ||operands.iter().any(|a|requires_generic_trait(a,params,args,id,operations)),
+        _=>false,
+    }
+}
 fn emit(checked: &Checked) -> String {
     let mut out = "// Generated by AIN compiler 0.2.0; edits will be overwritten.\n#![allow(unused_variables, dead_code)]\n\n".to_string();
     // Keep printing/conversion well-defined for all four AIN primitive types.
@@ -868,13 +967,25 @@ fn ain_input(_: ()) -> String {
     let fn_names: HashSet<String> = checked.program.functions.iter().map(|f| f.name.clone()).collect();
     for f in &checked.program.functions {
         let sig = checked.function_types.get(&f.name).unwrap();
+        let mut free=std::collections::BTreeSet::new();
+        for ty in &sig.args {ty.variables(&mut free);}
+        sig.ret.variables(&mut free);
+        let generic_header=if free.is_empty() {String::new()}else{
+            let specs=free.iter().map(|id|{
+                let mut bounds=vec!["Clone"];
+                if requires_generic_trait(&f.expr,&f.args,&sig.args,*id,&["print","str"]) {bounds.push("AinText");}
+                if requires_generic_trait(&f.expr,&f.args,&sig.args,*id,&["==","!="]) {bounds.push("PartialEq");}
+                format!("G{id}: {}",bounds.join(" + "))
+            }).collect::<Vec<_>>();
+            format!("<{}>",specs.join(", "))
+        };
         let args = f.args.iter().zip(&sig.args).enumerate().map(|(i, (name, ty))| {
             let rust_name = if name == "_" { format!("_unit_{i}") } else { safe_id(name) };
             format!("{}: {}", rust_name, ty.rust())
         }).collect::<Vec<_>>().join(", ");
         let local: HashMap<String, Ty> = f.args.iter().zip(&sig.args).filter(|(name, _)| name.as_str() != "_").map(|(n, t)| (n.clone(), t.clone())).collect();
         let body = rust_expr(&f.expr, &fn_names, &local, &HashMap::new());
-        out.push_str(&format!("fn {}({}) -> {} {{\n    {}\n}}\n\n", safe_id(&f.name), args, sig.ret.rust(), body));
+        out.push_str(&format!("fn {}{}({}) -> {} {{\n    {}\n}}\n\n", safe_id(&f.name), generic_header, args, sig.ret.rust(), body));
     }
     out.push_str("fn main() {\n");
     let mut globals = HashMap::new();
@@ -967,6 +1078,16 @@ pub fn compile(source: &str) -> Result<Compilation, CompileError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn parametric_identity_instantiates_separately() {
+        let s="identity x = x\nprint identity 4\nprint identity \"hello\"\n";
+        let rust=compile(s).unwrap().rust;
+        assert!(rust.contains("fn ain_identity<"));
+        assert!(rust.contains("-> G"));
+    }
+    #[test] fn type_restrictions_still_enforced() {
+        assert!(compile("same x y = + x y\nprint same 1 \"no\"").is_err());
+        assert!(compile("id x = x\nx = id option_none _").is_err());
+    }
     #[test] fn typed_list_zip_and_safe_access() {
         assert!(compile("print tuplefst listat listzip listof 1 listof true 0").is_ok());
         assert!(compile("print option_get listhead listof 3 0").is_ok());
