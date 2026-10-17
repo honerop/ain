@@ -34,3 +34,10 @@ jobs:
           cat /tmp/ain-gui.log
           test "$code" -eq 0
           grep -x 'tick' /tmp/ain-gui.log
+
+      - name: Smoke-test composable layout and redraw
+        run: |
+          cargo run --quiet -- build examples/gui_layout.ain -o /tmp/ain-gui-layout
+          timeout 15s xvfb-run -a dbus-run-session /tmp/ain-gui-layout > /tmp/ain-gui-layout.log 2>&1
+          cat /tmp/ain-gui-layout.log
+          test "$(grep -cx 'tick' /tmp/ain-gui-layout.log)" -eq 2
