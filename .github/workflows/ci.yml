@@ -12,6 +12,8 @@ jobs:
         run: clang --version
       - name: Rust compiler tests
         run: cargo test
+      - name: Native benchmark smoke test
+        run: cargo run -- bench examples/arithmetic.ain --backend both --runs 1 --json
       - name: Rust-first three-stage bootstrap
         run: ./scripts/bootstrap.sh
       - name: Independent reference bootstrap
