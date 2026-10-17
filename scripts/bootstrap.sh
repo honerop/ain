@@ -31,7 +31,7 @@ printf '[verified] byte-identical generated C across stages 1, 2 and 3\n'
 for file in examples/*.ain; do
   # The desktop example requires GTK4 and an interactive session; the
   # bootstrap proof only executes the portable primitive subset.
-  if [[ "$file" == "examples/desktop.ain" || "$file" == "examples/gui.ain" || "$file" == "examples/gui_tick.ain" || "$file" == "examples/gui_rich.ain" ]]; then
+  if [[ "$file" == examples/gui*.ain || "$file" == "examples/desktop.ain" ]]; then
     printf '[skip] %-35s GTK4 desktop (Rust backend only)\n' "$file"
     continue
   fi

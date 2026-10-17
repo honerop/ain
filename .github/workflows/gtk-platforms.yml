@@ -1,0 +1,45 @@
+name: Native GTK portability
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install GTK4 development libraries
+        run: brew install gtk4 pkg-config
+      - name: Compile Ain and native GUI on macOS
+        run: |
+          cargo test
+          cargo run -- build examples/gui_layout.ain -o gui-layout
+
+  windows-gnu:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          path-type: inherit
+          install: >-
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-toolchain
+      - name: Install Windows GNU Rust
+        shell: msys2 {0}
+        run: |
+          rustup toolchain install stable-x86_64-pc-windows-gnu
+          rustup default stable-x86_64-pc-windows-gnu
+      - name: Compile Ain and native GUI on Windows
+        shell: msys2 {0}
+        env:
+          RUSTUP_TOOLCHAIN: stable-x86_64-pc-windows-gnu
+        run: |
+          export PATH="/ucrt64/bin:$PATH"
+          cargo build
+          cargo run -- build examples/gui_layout.ain -o gui-layout.exe

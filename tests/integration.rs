@@ -11,7 +11,7 @@ fn execute(source: &str) -> String {
     let directory: PathBuf = std::env::temp_dir().join(format!("ain-test-{}-{stamp}", std::process::id()));
     fs::create_dir_all(&directory).unwrap();
     let file = directory.join("main.rs");
-    let binary = directory.join("run");
+    let binary = directory.join(format!("run{}", std::env::consts::EXE_SUFFIX));
     fs::write(&file, generated).unwrap();
     let result = Command::new("rustc")
         .arg("--edition=2021").arg("-O").arg(&file).arg("-o").arg(&binary)
@@ -68,6 +68,7 @@ fn selfhosted_bootstrap_source_typechecks_in_rust() {
 }
 
 #[test]
+#[cfg(unix)]
 fn external_program_no_shell() {
     assert_eq!(execute("print run \"true\" \"ignored\"\n"), "0\n");
 }

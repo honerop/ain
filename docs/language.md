@@ -181,3 +181,8 @@ print loop _
 ```
 
 These generic primitives require no GTK4 dependency and are currently implemented by the Rust code-generation backend, not the experimental AIR/LLVM or bootstrap C backend.
+
+
+## Portable GTK4 layout primitives
+
+See [native layout containers, GTK CSS and platform setup](gui.md).

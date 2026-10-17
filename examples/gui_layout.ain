@@ -1,0 +1,8 @@
+# Nested, reusable native layouts. GTK CSS styles classes; no embedded browser.
+# Non-blocking redraws preserve transcript scroll state.
+initial = "theme\tcyan\ncss\t.ain-demo { background: #172b3b; border-radius: 14px; padding: 16px; }\\n.ain-accent { color: #6fe2ee; font-weight: 700; }\ncolumn\tain-demo\t12\tgrow\nrow\ttopbar\t8\ntext\tain-accent\tAIN layout preview\nspacer\t\nbutton\tsettings\tSettings\nend\t\ngrid\tquick-links\t3\t8\nbutton\tfirst\tFiles\nbutton\tsecond\tSearch\nbutton\tthird\tTasks\nend\t\ntext\tain-muted\tGrid wraps on narrow windows; row and column nest.\nconversation\t\nmessage\tuser\tA long conversation should remain scrollable when repainted.\nmessage\tassistant\tGTK handles native inputs and styling.\nentry\tmessage\tWrite a message\naction\tsend\tSend\nend\t\nvim\t1\n"
+guiupdate "Ain layout preview" initial
+print before guitick 40 "\n"
+updated = concat before initial "entry\tmessage" "message\tassistant\tThe transcript was updated without replacing application state.\nentry\tmessage\tWrite a message\naction\tsend\tSend\nend\t\nvim\t1\n"
+guiupdate "Ain layout preview" updated
+print before guitick 40 "\n"
