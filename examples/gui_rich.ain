@@ -1,4 +1,4 @@
 # GTK4 widget smoke test: all application markup is still Ain data.
 fswrite "/tmp/ain-rich-widget-test.svg" "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><rect width=\"10\" height=\"10\" fill=\"cyan\"/></svg>"
-guiupdate "Ain native widgets" "header\tNative GTK4 controls\nhint\tNew reusable widgets\nimage\t/tmp/ain-rich-widget-test.svg\t64\nprogress\t75\t75% completed\nseparator\t\naction\tcontinue\tContinue\nentry\tmessage\tWrite a message\nbutton\tquit\tQuit\nvim\t1\n"
+guiupdate "Ain native widgets" "header\tNative GTK4 controls\nhint\tNew reusable widgets\ntoolbar\t\nselect\tbackend\tBACKEND\topencode\tOpenCode Free=opencode|ChatGPT=chatgpt|DeepInfra=deepinfra\nbutton\tsettings\tSettings\nendtoolbar\t\nimage\t/tmp/ain-rich-widget-test.svg\t64\nprogress\t75\t75% completed\nseparator\t\naction\tcontinue\tContinue\nentry\tmessage\tWrite a message\nbutton\tquit\tQuit\nvim\t1\n"
 print before guitick 40 "\n"
