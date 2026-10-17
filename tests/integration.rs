@@ -47,6 +47,11 @@ fn generic_equality_and_typed_callbacks() {
     assert_eq!(execute(src),"true\nfalse\n[42]\n[works]\n");
 }
 #[test]
+fn generic_bounds_propagate_across_forwarding() {
+    let source="sink x = print x\nrelay x = sink x\nequal a b = == a b\nrelay_equal x y = equal x y\nrelay 42\nrelay \"hello\"\nprint relay_equal 5 5\nprint relay_equal \"a\" \"b\"\n";
+    assert_eq!(execute(source),"42\nhello\ntrue\nfalse\n");
+}
+#[test]
 fn generic_mutually_recursive_functions() {
     let src="a n x = if == n 0 x b - n 1 x\nb n x = if == n 0 x a - n 1 x\nprint a 2 91\nprint b 3 \"ok\"\n";
     assert_eq!(execute(src),"91\nok\n");
