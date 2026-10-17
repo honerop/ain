@@ -201,6 +201,24 @@ def serve():
                     assert "Clicked" in text_snapshot(page)
                     assert "Sample link" in link_snapshot(page)
                     result = "browser smoke passed"
+                elif op == "agent-selftest":
+                    page.set_content("""<title>Agent browser</title><input aria-label="Search products">
+                        <button>Search</button><button>Place order</button>""")
+                    listed = inspect_page(page, elements)
+                    assert "@1 input" in listed and "Search products" in listed
+                    assert "@3 button" in listed and "Place order" in listed
+                    safe_fill(elements, "@1|boots")
+                    assert page.locator("input").input_value() == "boots"
+                    inspect_page(page, elements)
+                    safe_click(elements, "@2")
+                    inspect_page(page, elements)
+                    try:
+                        safe_click(elements, "@3")
+                        raise AssertionError("Agent was allowed to place an order")
+                    except ValueError:
+                        pass
+                    elements.clear()
+                    result = "browser agent smoke passed"
                 elif op == "open":
                     page.goto(validate_url(argument), wait_until="domcontentloaded", timeout=30000)
                     result = text_snapshot(page)
