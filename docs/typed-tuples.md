@@ -27,3 +27,20 @@ subset reject these structured types; the native Rust backend supports them.
 
 Generated-program tests verify mixed element types, native printing, nested
 tuples, swapping, and compile-time rejection of invalid tuple operands.
+
+## Three-element tuples
+
+The Rust backend also supports heterogeneous `tuple3 a b c` with
+`tuple3fst`, `tuple3snd`, and `tuple3third` projections.
+
+```text
+entry = tuple3 7 "north" true
+print tuple3fst entry
+print tuple3snd entry
+print tuple3third entry
+```
+
+Tuple elements are individually type-checked, and projections are rejected
+when applied to a tuple of the wrong arity. This is not yet a replacement
+for named records, algebraic data types or pattern matching. AIR/LLVM rejects
+these tuple values until structured IR support is implemented.

@@ -2,6 +2,8 @@ use ain_compiler::{compile_llvm, dump_air};
 use std::fs;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicU64, Ordering};
+static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn clang_available() -> bool {
     Command::new("clang").arg("--version").output().is_ok()
@@ -9,10 +11,10 @@ fn clang_available() -> bool {
 fn execute(source: &str) -> (bool, String) {
     let llvm = compile_llvm(source).expect("AIR lowering");
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    let dir = std::env::temp_dir().join(format!("ain-llvm-test-{}-{stamp}", std::process::id()));
-    fs::create_dir_all(&dir).unwrap();
+    let dir = std::env::temp_dir().join(format!("ain-llvm-test-{}-{stamp}-{}", std::process::id(), TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)));
+    fs::create_dir(&dir).unwrap();
     let ir = dir.join("program.ll");
-    let binary = dir.join("program");
+    let binary = dir.join(format!("program{}",std::env::consts::EXE_SUFFIX));
     fs::write(&ir, llvm).unwrap();
     let compilation = Command::new("clang").arg("-O3").arg("-x").arg("ir")
         .arg(&ir).arg("-o").arg(&binary).output().expect("clang available");
@@ -73,6 +75,16 @@ fn llvm_unit_functions() {
     assert!(ok);
     assert_eq!(out,"7\n7\n");
 }
+#[test]
+fn llvm_assertion_is_checked() {
+    if !clang_available() { return; }
+    let (ok, output) = execute("assert == + 2 3 5\nprint 17\n");
+    assert!(ok);
+    assert_eq!(output, "17\n");
+    let (ok, _) = execute("assert > 1 3\n");
+    assert!(!ok, "failed assertion must trap in LLVM backend");
+}
+
 #[test]
 fn llvm_constant_folding() {
     let air=dump_air("x = + 4 8\nprint x\n").unwrap();

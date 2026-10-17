@@ -146,8 +146,8 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "if"|"replace"|"clamp" => 3,
         "ffi2" => 4,
         "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend" => 2,
-        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr" => 1,
+        "chat"|"put"|"fold"|"iterate"|"tuple3"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
+        "not"|"neg"|"abs"|"assert"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"tuple3fst"|"tuple3snd"|"tuple3third"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr" => 1,
         _ => return None,
     })
 }
@@ -233,7 +233,7 @@ fn parse(source: &str) -> Result<Program, CompileError> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Map(Box<Ty>), Tuple(Box<Ty>, Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
+enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Map(Box<Ty>), Tuple(Box<Ty>, Box<Ty>), Tuple3(Box<Ty>, Box<Ty>, Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
 impl Ty {
     fn rust(&self) -> String {
         match self {
@@ -243,6 +243,7 @@ impl Ty {
             Ty::List(inner) => format!("Vec<{}>", inner.rust()),
             Ty::Map(inner) => format!("std::collections::BTreeMap<String, {}>", inner.rust()),
             Ty::Tuple(first, second) => format!("({}, {})", first.rust(), second.rust()),
+            Ty::Tuple3(a,b,c) => format!("({}, {}, {})",a.rust(),b.rust(),c.rust()),
             Ty::Option(inner) => format!("Option<{}>", inner.rust()),
             Ty::Result(inner) => format!("Result<{}, String>", inner.rust()),
             Ty::Unit => "()".into(), Ty::Var(_) => unreachable!("unresolved type"),
@@ -264,6 +265,7 @@ impl Types {
             Ty::List(inner) => Ty::List(Box::new(self.resolve(*inner))),
             Ty::Map(inner) => Ty::Map(Box::new(self.resolve(*inner))),
             Ty::Tuple(first,second) => Ty::Tuple(Box::new(self.resolve(*first)),Box::new(self.resolve(*second))),
+            Ty::Tuple3(a,b,c) => Ty::Tuple3(Box::new(self.resolve(*a)),Box::new(self.resolve(*b)),Box::new(self.resolve(*c))),
             Ty::Option(inner) => Ty::Option(Box::new(self.resolve(*inner))),
             Ty::Result(inner) => Ty::Result(Box::new(self.resolve(*inner))),
             t => t,
@@ -274,6 +276,7 @@ impl Types {
             Ty::Var(j) => id == j,
             Ty::List(inner) | Ty::Map(inner) | Ty::Option(inner) | Ty::Result(inner) => self.occurs(id, *inner),
             Ty::Tuple(a,b) => self.occurs(id,*a) || self.occurs(id,*b),
+            Ty::Tuple3(a,b,c) => self.occurs(id,*a) || self.occurs(id,*b) || self.occurs(id,*c),
             _ => false,
         }
     }
@@ -282,6 +285,7 @@ impl Types {
             Ty::Var(_) => true,
             Ty::List(inner) | Ty::Map(inner) | Ty::Option(inner) | Ty::Result(inner) => Self::unresolved(inner),
             Ty::Tuple(a,b) => Self::unresolved(a) || Self::unresolved(b),
+            Ty::Tuple3(a,b,c) => Self::unresolved(a) || Self::unresolved(b) || Self::unresolved(c),
             _ => false,
         }
     }
@@ -296,6 +300,9 @@ impl Types {
             },
             (Ty::Tuple(a,b),Ty::Tuple(c,d)) => {
                 self.unify(*a,*c,line)?; self.unify(*b,*d,line)
+            },
+            (Ty::Tuple3(a,b,c),Ty::Tuple3(d,e,f)) => {
+                self.unify(*a,*d,line)?; self.unify(*b,*e,line)?; self.unify(*c,*f,line)
             },
             (Ty::List(a), Ty::List(b)) | (Ty::Map(a), Ty::Map(b)) | (Ty::Option(a), Ty::Option(b)) |
                 (Ty::Result(a), Ty::Result(b)) => self.unify(*a, *b, line),
@@ -390,6 +397,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "assert" => { types.unify(actual[0].clone(), Ty::Bool, line)?; Ty::Unit },
                 "split" => { for arg in actual { types.unify(arg,Ty::Str,line)?; } Ty::List(Box::new(Ty::Str)) },
                 "lines" => { types.unify(actual[0].clone(),Ty::Str,line)?; Ty::List(Box::new(Ty::Str)) },
                 "strjoin" => {
@@ -434,6 +442,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                     Ty::Data
                 },
                 "tuple2" => Ty::Tuple(Box::new(actual[0].clone()),Box::new(actual[1].clone())),
+                "tuple3" => Ty::Tuple3(Box::new(actual[0].clone()),Box::new(actual[1].clone()),Box::new(actual[2].clone())),
                 "tuplefst"|"tuplesnd"|"tupleswap" => {
                     let a=types.fresh(); let b=types.fresh();
                     types.unify(actual[0].clone(),Ty::Tuple(Box::new(a.clone()),Box::new(b.clone())),line)?;
@@ -441,6 +450,15 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                         "tuplefst" => a,
                         "tuplesnd" => b,
                         _ => Ty::Tuple(Box::new(b),Box::new(a))
+                    }
+                },
+                "tuple3fst"|"tuple3snd"|"tuple3third" => {
+                    let a=types.fresh(); let b=types.fresh(); let c=types.fresh();
+                    types.unify(actual[0].clone(),Ty::Tuple3(Box::new(a.clone()),Box::new(b.clone()),Box::new(c.clone())),line)?;
+                    match name.as_str() {
+                        "tuple3fst" => a,
+                        "tuple3snd" => b,
+                        _ => c,
                     }
                 },
                 "tomlparse" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
@@ -601,7 +619,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
         Expr::Unit => "()".into(),
         Expr::Var(w) => {
             let ty = local.get(w).or_else(|| global.get(w)).expect("checked variable");
-            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Tuple(_,_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
+            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Tuple(_,_) | Ty::Tuple3(_,_,_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
         }
         Expr::Call(name, args) => {
             if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
@@ -641,6 +659,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "assert" => format!("{{ assert!({}, \"Ain assertion failed\"); }}", a[0]),
                 "split" => format!("{{ let source={}; let needle={}; if needle.is_empty() {{ source.chars().map(|c|c.to_string()).collect::<Vec<String>>() }} else {{ source.split(&needle).map(|s|s.to_string()).collect::<Vec<String>>() }} }}",a[0],a[1]),
                 "lines" => format!("({}).lines().map(|s|s.to_string()).collect::<Vec<String>>()",a[0]),
                 "strjoin" => format!("({}).join(({}).as_str())",a[0],a[1]),
@@ -657,9 +676,13 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "pathjoin" => format!("ain_path_join({}, {})",a[0],a[1]),
                 "processrun" => format!("ain_process_run({}, {})",a[0],a[1]),
                 "tuple2" => format!("({}, {})",a[0],a[1]),
+                "tuple3" => format!("({}, {}, {})",a[0],a[1],a[2]),
                 "tuplefst" => format!("({}).0",a[0]),
                 "tuplesnd" => format!("({}).1",a[0]),
                 "tupleswap" => format!("{{ let (first,second) = {}; (second,first) }}",a[0]),
+                "tuple3fst" => format!("({}).0",a[0]),
+                "tuple3snd" => format!("({}).1",a[0]),
+                "tuple3third" => format!("({}).2",a[0]),
                 "tomlparse" => format!("ain_tomlparse({})", a[0]),
                 "tomlwrite" => format!("ain_tomlwrite({})", a[0]),
                 "ffi0" => format!("ain_ffi0({}, {})", a[0], a[1]),
@@ -923,6 +946,8 @@ pub fn compile(source: &str) -> Result<Compilation, CompileError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn assert_requires_boolean() { assert!(compile("assert > 3 2").is_ok()); assert!(compile("assert 1").is_err()); }
+    #[test] fn typed_triples_reject_invalid_projection() { assert!(compile("print tuple3fst tuple3 1 2 true").is_ok()); assert!(compile("print tuple3fst tuple2 1 2").is_err()); }
     #[test] fn prefix_and_inferred_functions() {
         let compiled = compile("add a b = + a b\nsquare x = * x x\nprint add square 3 square 4").unwrap();
         assert!(compiled.rust.contains("fn ain_add(ain_a: i64, ain_b: i64) -> i64"));

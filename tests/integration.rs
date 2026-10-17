@@ -4,12 +4,14 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicU64, Ordering};
+static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn execute(source: &str) -> String {
     let generated = compile(source).expect("AIN compilation").rust;
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    let directory: PathBuf = std::env::temp_dir().join(format!("ain-test-{}-{stamp}", std::process::id()));
-    fs::create_dir_all(&directory).unwrap();
+    let directory: PathBuf = std::env::temp_dir().join(format!("ain-test-{}-{stamp}-{}", std::process::id(), TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)));
+    fs::create_dir(&directory).unwrap();
     let file = directory.join("main.rs");
     let binary = directory.join(format!("run{}", std::env::consts::EXE_SUFFIX));
     fs::write(&file, generated).unwrap();
@@ -21,6 +23,12 @@ fn execute(source: &str) -> String {
     assert!(output.status.success(), "generated binary failed:\n{}", String::from_utf8_lossy(&output.stderr));
     let _ = fs::remove_dir_all(directory);
     String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn assert_and_typed_triples() {
+    assert_eq!(execute("assert == + 2 3 5\nvalues = tuple3 10 \"north\" true\nprint tuple3fst values\nprint tuple3snd values\nprint tuple3third values\n"), "10\nnorth\ntrue\n");
+    assert!(compile("print + tuple3snd tuple3 1 \"x\" true 1").is_err());
 }
 
 #[test]
