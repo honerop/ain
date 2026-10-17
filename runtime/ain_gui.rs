@@ -182,6 +182,18 @@ unsafe fn ain_gui_restore_scroll(gui: *mut AinGui, scroll: *mut c_void, old: Opt
         ain_gui_scroll_changed as *const c_void, state.cast(),
         ain_gui_scroll_destroy as *const c_void, 0);
 }
+#[derive(Clone, Copy)]
+struct AinGuiContainer {
+    widget: *mut c_void,
+    flow: bool,
+}
+unsafe fn ain_gui_append(container: AinGuiContainer, child: *mut c_void) {
+    if container.flow {
+        gtk_flow_box_insert(container.widget, child, -1);
+    } else {
+        gtk_box_append(container.widget, child);
+    }
+}
 unsafe fn ain_gui_classes(widget: *mut c_void, classes: &str) {
     for class in classes.split_ascii_whitespace().take(8) {
         if class.len() <= 64 && class.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') {
@@ -377,7 +389,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
     gtk_flow_box_set_column_spacing(buttons, 8);
     let mut message_list: *mut c_void = ptr::null_mut();
     let mut toolbar: *mut c_void = ptr::null_mut();
-    let mut containers = vec![root];
+    let mut containers = vec![AinGuiContainer { widget: root, flow: false }];
     let mut toolbar_depth: Option<usize> = None;
     for line in spec.lines() {
         let mut tokens = line.splitn(5, '\t');
@@ -391,9 +403,9 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 let bar = gtk_box_new(0, 12);
                 gtk_widget_add_css_class(bar, ain_gui_c("ain-toolbar").as_ptr());
                 gtk_widget_set_hexpand(bar, 1);
-                gtk_box_append(*containers.last().unwrap(), bar);
+                ain_gui_append(*containers.last().unwrap(), bar);
                 toolbar_depth = Some(containers.len());
-                containers.push(bar);
+                containers.push(AinGuiContainer { widget: bar, flow: false });
                 toolbar = bar;
             }
             "endtoolbar" => {
@@ -412,8 +424,25 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 ain_gui_classes(group, a);
                 gtk_widget_set_hexpand(group, 1);
                 if c == "grow" { gtk_widget_set_vexpand(group, 1); }
-                gtk_box_append(*containers.last().unwrap(), group);
-                containers.push(group);
+                ain_gui_append(*containers.last().unwrap(), group);
+                containers.push(AinGuiContainer { widget: group, flow: false });
+            }
+            "grid" => {
+                if containers.len() >= 32 { continue; }
+                // grid<TAB>CSS classes<TAB>maximum columns<TAB>gap px
+                // GTK FlowBox wraps items when there is not enough space.
+                let columns = b.parse::<u32>().unwrap_or(3).clamp(1, 12);
+                let gap = c.parse::<u32>().unwrap_or(10).min(64);
+                let grid = gtk_flow_box_new();
+                gtk_flow_box_set_min_children_per_line(grid, 1);
+                gtk_flow_box_set_max_children_per_line(grid, columns);
+                gtk_flow_box_set_row_spacing(grid, gap);
+                gtk_flow_box_set_column_spacing(grid, gap);
+                gtk_widget_set_hexpand(grid, 1);
+                gtk_widget_add_css_class(grid, ain_gui_c("ain-grid").as_ptr());
+                ain_gui_classes(grid, a);
+                ain_gui_append(*containers.last().unwrap(), grid);
+                containers.push(AinGuiContainer { widget: grid, flow: true });
             }
             "end" => {
                 if containers.len() > 1 &&
@@ -428,13 +457,13 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_label_set_wrap(label, 1);
                 gtk_widget_add_css_class(label, ain_gui_c("ain-text").as_ptr());
                 ain_gui_classes(label, a);
-                gtk_box_append(*containers.last().unwrap(), label);
+                ain_gui_append(*containers.last().unwrap(), label);
             }
             "spacer" => {
                 let spacer = gtk_box_new(0, 0);
                 gtk_widget_set_hexpand(spacer, 1);
                 gtk_widget_set_vexpand(spacer, 1);
-                gtk_box_append(*containers.last().unwrap(), spacer);
+                ain_gui_append(*containers.last().unwrap(), spacer);
             }
             "css" => {} ,
             "select" => {
@@ -475,7 +504,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                     ain_gui_select_changed as *const c_void, selection.cast(),
                     ain_gui_select_destroy as *const c_void, 0);
                 (*gui).selects.push(dropdown);
-                gtk_box_append(*containers.last().unwrap(), group);
+                ain_gui_append(*containers.last().unwrap(), group);
             },
             "conversation" => {
                 // Messages are real GTK widgets, not a giant flattened text field.
@@ -487,7 +516,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_widget_set_vexpand(scroll, 1);
                 gtk_widget_set_hexpand(scroll, 1);
                 gtk_widget_set_focusable(scroll, 1);
-                gtk_box_append(*containers.last().unwrap(), scroll);
+                ain_gui_append(*containers.last().unwrap(), scroll);
                 message_list = list;
                 (*gui).transcript = scroll;
                 (*gui).scroll = scroll;
@@ -536,7 +565,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 } else {
                     gtk_widget_add_css_class(label, ain_gui_c("dim-label").as_ptr());
                 }
-                gtk_box_append(*containers.last().unwrap(), label);
+                ain_gui_append(*containers.last().unwrap(), label);
             }
             "log" => {
                 let scroll = gtk_scrolled_window_new();
@@ -551,7 +580,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_scrolled_window_set_child(scroll, view);
                 gtk_widget_set_vexpand(scroll, 1);
                 gtk_widget_set_hexpand(scroll, 1);
-                gtk_box_append(*containers.last().unwrap(), scroll);
+                ain_gui_append(*containers.last().unwrap(), scroll);
                 (*gui).transcript = scroll;
                 (*gui).scroll = scroll;
                 ain_gui_restore_scroll(gui, scroll, old_scroll);
@@ -563,7 +592,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_entry_set_placeholder_text(entry, ain_gui_c(b).as_ptr());
                 g_signal_connect_data(entry, ain_gui_c("activate").as_ptr(),
                     ain_gui_enter as *const c_void, gui.cast(), ptr::null(), 0);
-                gtk_box_append(*containers.last().unwrap(), entry);
+                ain_gui_append(*containers.last().unwrap(), entry);
                 (*gui).entry = entry;
             }
             "button" | "action" => {
@@ -575,7 +604,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 g_signal_connect_data(button, ain_gui_c("clicked").as_ptr(),
                     ain_gui_button_clicked as *const c_void, action.cast(), ain_gui_button_destroy as *const c_void, 0);
                 if kind == "action" || containers.len() > 1 || !toolbar.is_null() {
-                    gtk_box_append(*containers.last().unwrap(), button);
+                    ain_gui_append(*containers.last().unwrap(), button);
                 } else {
                     gtk_flow_box_insert(buttons, button, -1);
                 }
@@ -588,10 +617,10 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 gtk_progress_bar_set_text(bar, ain_gui_c(&caption).as_ptr());
                 gtk_progress_bar_set_show_text(bar, 1);
                 gtk_widget_set_hexpand(bar, 1);
-                gtk_box_append(*containers.last().unwrap(), bar);
+                ain_gui_append(*containers.last().unwrap(), bar);
             }
             "separator" => {
-                gtk_box_append(*containers.last().unwrap(), gtk_separator_new(0)); // horizontal separator
+                ain_gui_append(*containers.last().unwrap(), gtk_separator_new(0)); // horizontal separator
             }
             "image" => {
                 if a.len() > 4096 || a.is_empty() || a.contains('\0') { continue; }
@@ -599,7 +628,7 @@ unsafe fn ain_gui_render(gui: *mut AinGui, title: &str, spec: &str) {
                 let size = b.parse::<i32>().unwrap_or(240).clamp(32, 720);
                 let picture = gtk_picture_new_for_filename(ain_gui_c(a).as_ptr());
                 gtk_widget_set_size_request(picture, size, size);
-                gtk_box_append(*containers.last().unwrap(), picture);
+                ain_gui_append(*containers.last().unwrap(), picture);
             }
             "vim" => (*gui).vim = a == "1",
             _ => {}
