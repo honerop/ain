@@ -145,9 +145,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
         "ffi2" => 4,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend" => 2,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend"|"listzip" => 2,
         "chat"|"put"|"fold"|"iterate"|"tuple3"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
-        "not"|"neg"|"abs"|"assert"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"tuple3fst"|"tuple3snd"|"tuple3third"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr" => 1,
+        "not"|"neg"|"abs"|"assert"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"tuple3fst"|"tuple3snd"|"tuple3third"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr"|"listhead"|"listlast"|"listenumerate" => 1,
         _ => return None,
     })
 }
@@ -515,6 +515,22 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                     elem
                 },
                 "listlen" => { let elem=types.fresh(); types.unify(actual[0].clone(), Ty::List(Box::new(elem)), line)?; Ty::Int },
+                "listhead"|"listlast" => {
+                    let elem=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(elem.clone())),line)?;
+                    Ty::Option(Box::new(elem))
+                },
+                "listenumerate" => {
+                    let elem=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(elem.clone())),line)?;
+                    Ty::List(Box::new(Ty::Tuple(Box::new(Ty::Int),Box::new(elem))))
+                },
+                "listzip" => {
+                    let a=types.fresh(); let b=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(a.clone())),line)?;
+                    types.unify(actual[1].clone(),Ty::List(Box::new(b.clone())),line)?;
+                    Ty::List(Box::new(Ty::Tuple(Box::new(a),Box::new(b))))
+                },
                 "csvparse"|"trycsv"|"b64decode"|"utf8bytes" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
                 "csvwrite"|"b64encode" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Str },
                 "frombytes"|"zpack"|"zunpack" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
@@ -668,6 +684,10 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "listdrop" => format!("({}).into_iter().skip(usize::try_from({}).unwrap_or(0)).collect::<Vec<_>>()",a[0],a[1]),
                 "listappend" => format!("{{ let mut list={}; list.extend({}); list }}",a[0],a[1]),
                 "listflatten" => format!("({}).into_iter().flatten().collect::<Vec<_>>()",a[0]),
+                "listzip" => format!("({}).into_iter().zip(({}).into_iter()).collect::<Vec<_>>()",a[0],a[1]),
+                "listhead" => format!("({}).into_iter().next()",a[0]),
+                "listlast" => format!("({}).into_iter().last()",a[0]),
+                "listenumerate" => format!("({}).into_iter().enumerate().map(|(i,v)| (i64::try_from(i).expect(\"too many list elements\"),v)).collect::<Vec<_>>()",a[0]),
                 "sortint"|"sortstr" => format!("{{ let mut list={}; list.sort(); list }}",a[0]),
                 "fslist" => format!("ain_fs_list({})",a[0]),
                 "fsmkdir" => format!("ain_fs_mkdir({})",a[0]),
@@ -946,6 +966,13 @@ pub fn compile(source: &str) -> Result<Compilation, CompileError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn typed_list_zip_and_safe_access() {
+        assert!(compile("print tuplefst listat listzip listof 1 listof true 0").is_ok());
+        assert!(compile("print option_get listhead listof 3 0").is_ok());
+        assert!(compile("print tuplefst listat listenumerate listof \"x\" 0").is_ok());
+        assert!(compile("print listzip listof 1 listof 2").is_err()); // tuple lacks display, not a typing error
+        assert!(compile("print listzip listof 1 2").is_err());
+    }
     #[test] fn assert_requires_boolean() { assert!(compile("assert > 3 2").is_ok()); assert!(compile("assert 1").is_err()); }
     #[test] fn typed_triples_reject_invalid_projection() { assert!(compile("print tuple3fst tuple3 1 2 true").is_ok()); assert!(compile("print tuple3fst tuple2 1 2").is_err()); }
     #[test] fn prefix_and_inferred_functions() {

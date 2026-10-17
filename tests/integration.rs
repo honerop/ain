@@ -26,6 +26,11 @@ fn execute(source: &str) -> String {
 }
 
 #[test]
+fn typed_list_zip_enumerate_and_safe_head_last() {
+    let program = "xs = listpush listof 10 20\nys = listpush listof \"a\" \"b\"\nprint tuplefst listat listzip xs ys 0\nprint tuplesnd listat listzip xs ys 1\nprint option_get listhead xs 0\nprint option_get listlast ys \"missing\"\nprint tuplefst listat listenumerate xs 1\n";
+    assert_eq!(execute(program), "10\nb\n10\nb\n1\n");
+}
+#[test]
 fn assert_and_typed_triples() {
     assert_eq!(execute("assert == + 2 3 5\nvalues = tuple3 10 \"north\" true\nprint tuple3fst values\nprint tuple3snd values\nprint tuple3third values\n"), "10\nnorth\ntrue\n");
     assert!(compile("print + tuple3snd tuple3 1 \"x\" true 1").is_err());

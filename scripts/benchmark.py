@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CASES = ["examples/arithmetic.ain", "examples/branches.ain", "examples/recursive.ain"]
+CASES = ["examples/arithmetic.ain", "examples/branches.ain", "examples/recursive.ain", "examples/assertions.ain"]
 
 def source_stats(text):
     return {"utf8_bytes": len(text.encode("utf-8")),
