@@ -226,6 +226,14 @@ fn emit_llvm(m:&Module)->String {
     e.line("ret i32 0");out.push_str("define i32 @main() {\n");out.push_str(&e.code);out.push_str("}\n");out
 }
 
-fn module(source:&str)->Result<Module,CompileError>{let p=parse(source)?;let c=check(p)?;lower(&c)}
+fn module(source:&str)->Result<Module,CompileError>{
+    let p=parse(source)?;
+    let c=check(p)?;
+    if c.function_types.values().any(|sig|
+        sig.args.iter().any(Ty::unresolved)||Ty::unresolved(&sig.ret)) {
+        return Err(err(1,"LLVM does not support polymorphic functions yet; use the Rust backend"));
+    }
+    lower(&c)
+}
 pub fn dump(source:&str)->Result<String,CompileError>{module(source).map(|m|air_text(&m))}
 pub fn llvm(source:&str)->Result<String,CompileError>{module(source).map(|m|emit_llvm(&m))}

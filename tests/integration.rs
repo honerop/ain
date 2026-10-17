@@ -37,6 +37,16 @@ fn assert_and_typed_triples() {
 }
 
 #[test]
+fn inferred_generic_calls_and_recursive_groups() {
+    let source = "id x = x\nforward x = id x\ncombine a b = tuple2 a b\nrepeat n x = if == n 0 x repeat - n 1 x\nprint id 42\nprint id \"hello\"\nprint forward true\nprint combine 7 \"north\"\nprint repeat 3 99\nprint repeat 2 \"again\"\n";
+    assert_eq!(execute(source),"42\nhello\ntrue\n(7, north)\n99\nagain\n");
+}
+#[test]
+fn generic_containers_and_forward_references() {
+    let source="first xs = option_get listhead xs 0\nident x = x\nprint first listof 31\nprint ident listof \"a\"\nprint ident listof 2\n";
+    assert_eq!(execute(source),"31\n[a]\n[2]\n");
+}
+#[test]
 fn arithmetic_program() {
     assert_eq!(execute(include_str!("../examples/arithmetic.ain")), "25\n");
 }

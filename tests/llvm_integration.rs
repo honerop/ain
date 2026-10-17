@@ -65,6 +65,11 @@ fn llvm_preserves_integer_guards() {
     assert!(!ok, "overflow must terminate rather than silently wrap");
 }
 #[test]
+fn llvm_rejects_polymorphic_functions_gracefully() {
+    let err=compile_llvm("id x = x\nprint id 1\n").unwrap_err();
+    assert!(err.message.contains("polymorphic"),"{}",err.message);
+}
+#[test]
 fn llvm_rejects_strings_until_supported() {
     assert!(compile_llvm("print \"hello\"").is_err());
 }
