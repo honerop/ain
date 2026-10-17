@@ -112,7 +112,7 @@ pub fn run(args: &[String]) -> Result<(),String> {
     let source=fs::read_to_string(file).map_err(|e|format!("{file}: {e}"))?;
     let tmp=Temporary(work_dir()?);
     let mut measurements=Vec::new();
-    for kind in if backend=="both" {vec!["rust","llvm"]}else {vec![backend]} {
+    for kind in match backend { "both" => vec!["rust","llvm"], "rust" => vec!["rust"], "llvm" => vec!["llvm"], _ => unreachable!() } {
         measurements.push(measure(&source,kind,repeats,Duration::from_millis(timeout_ms),&tmp.0)?);
     }
     let equivalent=if measurements.len()==2 {
