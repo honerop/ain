@@ -42,6 +42,16 @@ fn inferred_generic_calls_and_recursive_groups() {
     assert_eq!(execute(source),"42\nhello\ntrue\n(7, north)\n99\nagain\n");
 }
 #[test]
+fn generic_equality_and_typed_callbacks() {
+    let src="id x = x\nsame x y = == x y\nprint same 7 7\nprint same \"a\" \"b\"\nprint listmap \"id\" listof 42\nprint listmap \"id\" listof \"works\"\n";
+    assert_eq!(execute(src),"true\nfalse\n[42]\n[works]\n");
+}
+#[test]
+fn generic_mutually_recursive_functions() {
+    let src="a n x = if == n 0 x b - n 1 x\nb n x = if == n 0 x a - n 1 x\nprint a 2 91\nprint b 3 \"ok\"\n";
+    assert_eq!(execute(src),"91\nok\n");
+}
+#[test]
 fn generic_containers_and_forward_references() {
     let source="first xs = option_get listhead xs 0\nident x = x\nprint first listof 31\nprint ident listof \"a\"\nprint ident listof 2\n";
     assert_eq!(execute(source),"31\n[a]\n[2]\n");
