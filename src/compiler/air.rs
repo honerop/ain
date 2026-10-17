@@ -230,7 +230,7 @@ fn module(source:&str)->Result<Module,CompileError>{
     let p=parse(source)?;
     let c=check(p)?;
     if c.function_types.values().any(|sig|
-        sig.args.iter().any(Ty::unresolved)||Ty::unresolved(&sig.ret)) {
+        sig.args.iter().chain(std::iter::once(&sig.ret)).any(|ty| {let mut vars=std::collections::BTreeSet::new();ty.variables(&mut vars);!vars.is_empty()})) {
         return Err(err(1,"LLVM does not support polymorphic functions yet; use the Rust backend"));
     }
     lower(&c)
