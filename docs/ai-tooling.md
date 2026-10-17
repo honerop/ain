@@ -14,7 +14,7 @@ Errors contain a `severity`, `line`, `code`, `message`, and `hint`.
 
 Current diagnostic classes are `E_TYPE`, `E_UNKNOWN_VARIABLE`,
 `E_UNKNOWN_FUNCTION`, `E_INFERENCE`, `E_EXPRESSION`,
-`E_UNTERMINATED`, `E_DUPLICATE`, and `E_COMPILER`.
+`E_UNTERMINATED`, `E_DUPLICATE`, `E_ARITY`, and `E_COMPILER`.
 Classes are broad: the underlying messages remain the authoritative compiler
 diagnostics. Precise column ranges, related locations, and automated code fixes
 are not yet implemented.

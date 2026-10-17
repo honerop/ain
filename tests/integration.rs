@@ -32,7 +32,7 @@ fn typed_list_zip_enumerate_and_safe_head_last() {
 }
 #[test]
 fn assert_and_typed_triples() {
-    assert_eq!(execute("assert == + 2 3 5\nvalues = tuple3 10 \"north\" true\nprint tuple3fst values\nprint tuple3snd values\nprint tuple3third values\n"), "10\nnorth\ntrue\n");
+    assert_eq!(execute("assert == + 2 3 5\nvalues = tuple3 10 \"north\" true\nprint tuple3fst values\nprint tuple3snd values\nprint tuple3third values\nprint values\n"), "10\nnorth\ntrue\n(10, north, true)\n");
     assert!(compile("print + tuple3snd tuple3 1 \"x\" true 1").is_err());
 }
 

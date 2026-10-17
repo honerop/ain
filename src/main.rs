@@ -32,6 +32,8 @@ fn diagnostic_class(message: &str) -> (&'static str, &'static str) {
         ("E_UNKNOWN_FUNCTION", "Use a declared function or supported builtin")
     } else if message.contains("cannot infer type") {
         ("E_INFERENCE", "Provide a typed expression or use the value in a typed operation")
+    } else if message.contains("extra tokens after expression") {
+        ("E_ARITY", "Check the number of arguments expected by each prefix expression")
     } else if message.contains("expected expression") {
         ("E_EXPRESSION", "Provide all arguments required by the prefix expression")
     } else if message.contains("unterminated") {

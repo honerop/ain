@@ -827,6 +827,7 @@ fn emit(checked: &Checked) -> String {
     out.push_str("impl AinText for () { fn ain_text(&self) -> String { \"()\".to_string() } }\n");
     out.push_str("impl<T: AinText> AinText for Vec<T> { fn ain_text(&self) -> String { format!(\"[{}]\", self.iter().map(|x| x.ain_text()).collect::<Vec<_>>().join(\",\")) } }\n");
     out.push_str("impl<A:AinText,B:AinText> AinText for (A,B) { fn ain_text(&self) -> String { format!(\"({}, {})\",self.0.ain_text(),self.1.ain_text()) } }\n");
+    out.push_str("impl<A:AinText,B:AinText,C:AinText> AinText for (A,B,C) { fn ain_text(&self) -> String { format!(\"({}, {}, {})\",self.0.ain_text(),self.1.ain_text(),self.2.ain_text()) } }\n");
     out.push_str("impl<T: AinText> AinText for std::collections::BTreeMap<String,T> { fn ain_text(&self) -> String { format!(\"{{{}}}\", self.iter().map(|(k,v)| format!(\"{}:{}\", k, v.ain_text())).collect::<Vec<_>>().join(\",\")) } }\n");
     out.push_str("impl<T: AinText> AinText for Option<T> { fn ain_text(&self) -> String { match self { Some(v) => format!(\"some({})\",v.ain_text()), None => \"none\".into() } } }\n");
     out.push_str("impl<T: AinText> AinText for Result<T,String> { fn ain_text(&self) -> String { match self { Ok(v) => format!(\"ok({})\",v.ain_text()), Err(e) => format!(\"err({})\",e) } } }\n");
@@ -970,7 +971,7 @@ mod tests {
         assert!(compile("print tuplefst listat listzip listof 1 listof true 0").is_ok());
         assert!(compile("print option_get listhead listof 3 0").is_ok());
         assert!(compile("print tuplefst listat listenumerate listof \"x\" 0").is_ok());
-        assert!(compile("print listzip listof 1 listof 2").is_err()); // tuple lacks display, not a typing error
+        assert!(compile("print listzip listof 1 listof 2").is_ok());
         assert!(compile("print listzip listof 1 2").is_err());
     }
     #[test] fn assert_requires_boolean() { assert!(compile("assert > 3 2").is_ok()); assert!(compile("assert 1").is_err()); }
