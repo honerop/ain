@@ -67,12 +67,112 @@ def link_snapshot(page) -> str:
     )
     return "\n".join(f"{row['text'] or '(untitled)'}: {row['href']}" for row in links)
 
+
+# Model-directed browsing uses inspected element handles, never arbitrary JS or
+# selectors invented by page text. Handles become invalid if the DOM changes.
+ACTIONABLE = "a[href], button, input, textarea, select, [role=button], [role=link], [role=textbox]"
+DANGEROUS = ("buy now", "checkout", "check out", "place order", "pay now",
+             "confirm order", "complete purchase", "purchase now", "submit order",
+             "transfer funds", "delete account", "remove account", "send money",
+             "confirm payment", "subscribe now")
+
+def inspect_page(page, elements):
+    elements.clear()
+    rows = []
+    locator = page.locator(ACTIONABLE)
+    # Keep bounded output and a stable mapping from displayed IDs to handles.
+    for i in range(min(locator.count(), 600)):
+        if len(rows) >= 120:
+            break
+        handle = locator.nth(i).element_handle()
+        if handle is None or not handle.is_visible():
+            continue
+        info = handle.evaluate("""el => {
+            const form = el.closest('form');
+            return {
+                tag: el.tagName.toLowerCase(),
+                type: (el.getAttribute('type') || '').toLowerCase(),
+                label: (el.getAttribute('aria-label') ||
+                    el.getAttribute('placeholder') || el.innerText ||
+                    el.getAttribute('value') || el.getAttribute('name') || '').trim(),
+                href: el.href || '',
+                method: form ? form.method : '',
+                action: form ? form.action : ''
+            };
+        }""")
+        index = len(rows) + 1
+        elements[index] = handle
+        label = " ".join(info["label"].split())[:90]
+        href = info["href"][:160]
+        rows.append(f"@{index} {info['tag']} {info['type']} {label}" +
+                    (f" -> {href}" if href else ""))
+    return text_snapshot(page)[:6500] + "\n\nINTERACTIVE ELEMENTS (use @number):\n" + "\n".join(rows)
+
+def element_by_index(elements, argument):
+    if not argument.startswith("@") or not argument[1:].isdigit():
+        raise ValueError("Use an @number from the latest inspect result")
+    handle = elements.get(int(argument[1:]))
+    if handle is None or not handle.is_visible():
+        raise ValueError("Element is missing or has changed; inspect again")
+    return handle
+
+def safe_click(elements, argument):
+    element = element_by_index(elements, argument)
+    info = element.evaluate("""el => {
+        const form = el.closest('form');
+        return {
+            label: ((el.getAttribute('aria-label') || '') + ' ' +
+                (el.innerText || '') + ' ' + (el.getAttribute('value') || '')).toLowerCase(),
+            href: el.href || '',
+            tag: el.tagName.toLowerCase(),
+            type: (el.getAttribute('type') || '').toLowerCase(),
+            method: form ? form.method.toLowerCase() : '',
+            action: form ? form.action : ''
+        };
+    }""")
+    label = " ".join(info["label"].split())
+    destination = (info["href"] + " " + info["action"]).lower()
+    if any(word in (label + " " + destination) for word in DANGEROUS):
+        raise ValueError("Potential purchase/payment/account action blocked; use a manual browser command")
+    if info["href"]:
+        validate_url(info["href"])
+    # A model may browse GET searches but cannot submit POST forms.
+    if (info["tag"] in ("button", "input") and
+        info["type"] in ("submit", "image", "") and
+        info["method"] not in ("", "get")):
+        raise ValueError("Submitting a non-GET form requires a manual browser command")
+    element.click(timeout=10000)
+
+def safe_fill(elements, argument):
+    index, sep, value = argument.partition("|")
+    if not sep or len(value) > 1000:
+        raise ValueError("Use @number|text (maximum 1000 characters)")
+    element = element_by_index(elements, index.strip())
+    info = element.evaluate("""el => ({
+        tag: el.tagName.toLowerCase(),
+        type: (el.getAttribute('type') || 'text').toLowerCase(),
+        name: ((el.getAttribute('name') || '') + ' ' +
+               (el.getAttribute('id') || '') + ' ' +
+               (el.getAttribute('autocomplete') || '')).toLowerCase()
+    })""")
+    if info["tag"] not in ("input", "textarea") or info["type"] not in (
+        "text", "search", "email", "number", "tel"
+    ):
+        raise ValueError("Agent can only fill ordinary text/search inputs")
+    if any(word in info["name"] for word in (
+        "password", "card", "payment", "cc-", "cvv", "cvc", "security", "address",
+        "social", "token", "secret", "otp", "verification"
+    )):
+        raise ValueError("Sensitive form input blocked; fill it manually")
+    element.fill(value, timeout=10000)
+
 def serve():
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         browser = None
         context = None
         page = None
+        elements = {}
         for line in sys.stdin:
             try:
                 request = json.loads(line)
@@ -101,10 +201,38 @@ def serve():
                     assert "Clicked" in text_snapshot(page)
                     assert "Sample link" in link_snapshot(page)
                     result = "browser smoke passed"
+                elif op == "agent-selftest":
+                    page.set_content("""<title>Agent browser</title><input aria-label="Search products">
+                        <button>Search</button><button>Place order</button>""")
+                    listed = inspect_page(page, elements)
+                    assert "@1 input" in listed and "Search products" in listed
+                    assert "@3 button" in listed and "Place order" in listed
+                    safe_fill(elements, "@1|boots")
+                    assert page.locator("input").input_value() == "boots"
+                    inspect_page(page, elements)
+                    safe_click(elements, "@2")
+                    inspect_page(page, elements)
+                    try:
+                        safe_click(elements, "@3")
+                        raise AssertionError("Agent was allowed to place an order")
+                    except ValueError:
+                        pass
+                    elements.clear()
+                    result = "browser agent smoke passed"
                 elif op == "open":
                     page.goto(validate_url(argument), wait_until="domcontentloaded", timeout=30000)
                     result = text_snapshot(page)
                 elif op == "read":
+                    result = text_snapshot(page)
+                elif op == "inspect":
+                    result = inspect_page(page, elements)
+                elif op == "click-safe":
+                    safe_click(elements, argument)
+                    elements.clear()
+                    result = text_snapshot(page)
+                elif op == "fill-safe":
+                    safe_fill(elements, argument)
+                    elements.clear()
                     result = text_snapshot(page)
                 elif op == "links":
                     result = link_snapshot(page)
@@ -172,6 +300,25 @@ def browser_smoke():
             page.locator("#message").fill("Browsed")
             page.locator("#go").click()
             assert "Browsed" in text_snapshot(page)
+            page.set_content("""<input id="query" aria-label="Product search">
+                <button id="search">Search</button>
+                <button id="checkout">Place order</button>""")
+            handles = {}
+            listing = inspect_page(page, handles)
+            assert "Product search" in listing
+            assert "Place order" in listing
+            safe_fill(handles, "@1|book")
+            assert page.locator("#query").input_value() == "book"
+            handles = {}
+            inspect_page(page, handles)
+            safe_click(handles, "@2")
+            handles = {}
+            inspect_page(page, handles)
+            try:
+                safe_click(handles, "@3")
+                raise AssertionError("Purchase should be blocked")
+            except ValueError:
+                pass
         finally:
             browser.close()
     print("Chromium/Playwright browser smoke test passed")
