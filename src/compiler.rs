@@ -897,23 +897,62 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
     }
 }
 
-fn requires_generic_trait(expr:&Expr,params:&[String],args:&[Ty],id:usize,operations:&[&str])->bool {
-    fn seen(t:&Expr,params:&[String],args:&[Ty],id:usize)->bool {
-        match t {
-            Expr::Var(name)=>params.iter().zip(args).any(|(p,ty)|{
-                let mut vars=std::collections::BTreeSet::new();
-                ty.variables(&mut vars);
-                name==p&&vars.contains(&id)
-            }),
-            Expr::Call(_,xs)=>xs.iter().any(|x|seen(x,params,args,id)),
-            _=>false,
-        }
+#[derive(Clone,Copy,Default,PartialEq,Eq)]
+struct TraitNeed { text: bool, equal: bool }
+impl TraitNeed {
+    fn add(&mut self, other:Self) {
+        self.text|=other.text;self.equal|=other.equal;
     }
+}
+fn mentions_param(expr:&Expr,param:&str)->bool {
     match expr {
-        Expr::Call(name,operands)=>(operations.contains(&name.as_str())
-            &&operands.iter().any(|a|seen(a,params,args,id)))
-            ||operands.iter().any(|a|requires_generic_trait(a,params,args,id,operations)),
+        Expr::Var(name)=>name==param,
+        Expr::Call(_,args)=>args.iter().any(|arg|mentions_param(arg,param)),
         _=>false,
+    }
+}
+fn needed_by_expr(expr:&Expr,param:&str,known:&HashMap<String,Vec<TraitNeed>>)->TraitNeed {
+    let mut need=TraitNeed::default();
+    if let Expr::Call(name,args)=expr {
+        if matches!(name.as_str(),"print"|"str") &&
+            args.iter().any(|arg|mentions_param(arg,param)) {need.text=true;}
+        if matches!(name.as_str(),"=="|"!=") &&
+            args.iter().any(|arg|mentions_param(arg,param)) {need.equal=true;}
+        if let Some(callee)=known.get(name) {
+            for (arg,req) in args.iter().zip(callee) {
+                if mentions_param(arg,param) {need.add(*req);}
+            }
+        }
+        // Quoted callbacks carry generic requirements into list combinators.
+        if matches!(name.as_str(),"listmap"|"listfilter"|"listfold"|"map"|"filter"|"fold"|"iterate"|"each"|"spawn") {
+            if let Some(Expr::Str(callback))=args.first() {
+                if let Some(reqs)=known.get(callback) {
+                    if args.iter().skip(1).any(|arg|mentions_param(arg,param)) {
+                        for req in reqs {need.add(*req);}
+                    }
+                }
+            }
+        }
+        for arg in args {need.add(needed_by_expr(arg,param,known));}
+    }
+    need
+}
+fn required_traits(program:&Program)->HashMap<String,Vec<TraitNeed>> {
+    let mut current=program.functions.iter().map(|f|
+        (f.name.clone(),vec![TraitNeed::default();f.args.len()])
+    ).collect::<HashMap<_,_>>();
+    // Monotone finite fixed point: one bit per trait per function parameter.
+    loop {
+        let previous=current.clone();
+        for f in &program.functions {
+            for (i,param) in f.args.iter().enumerate() {
+                if param!="_" {
+                    current.get_mut(&f.name).unwrap()[i].add(
+                        needed_by_expr(&f.expr,param,&previous));
+                }
+            }
+        }
+        if current==previous {return current;}
     }
 }
 fn emit(checked: &Checked) -> String {
@@ -965,6 +1004,7 @@ fn ain_input(_: ()) -> String {
 }
 "#);
     let fn_names: HashSet<String> = checked.program.functions.iter().map(|f| f.name.clone()).collect();
+    let trait_needs=required_traits(&checked.program);
     for f in &checked.program.functions {
         let sig = checked.function_types.get(&f.name).unwrap();
         let mut free=std::collections::BTreeSet::new();
@@ -973,8 +1013,14 @@ fn ain_input(_: ()) -> String {
         let generic_header=if free.is_empty() {String::new()}else{
             let specs=free.iter().map(|id|{
                 let mut bounds=vec!["Clone"];
-                if requires_generic_trait(&f.expr,&f.args,&sig.args,*id,&["print","str"]) {bounds.push("AinText");}
-                if requires_generic_trait(&f.expr,&f.args,&sig.args,*id,&["==","!="]) {bounds.push("PartialEq");}
+                let mut traits=TraitNeed::default();
+                for (t,need) in sig.args.iter().zip(&trait_needs[&f.name]) {
+                    let mut vars=std::collections::BTreeSet::new();
+                    t.variables(&mut vars);
+                    if vars.contains(id) {traits.add(*need);}
+                }
+                if traits.text {bounds.push("AinText");}
+                if traits.equal {bounds.push("PartialEq");}
                 format!("G{id}: {}",bounds.join(" + "))
             }).collect::<Vec<_>>();
             format!("<{}>",specs.join(", "))
