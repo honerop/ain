@@ -44,3 +44,19 @@ A generator receives JSON like:
 For subsequent attempts, previous_source and diagnostics carry the last
 failure. The generated code is **never executed** by this script.
 Passing `check-json` proves neither functional correctness nor safety.
+
+## Ready-to-use OpenCode adapter
+
+A provider adapter for OpenCode's `--format json` CLI is included:
+
+```sh
+python3 scripts/agent_loop.py --prompt-file task.txt \\
+  --output generated.ain --ainc ./target/debug/ainc --attempts 4 \\
+  -- python3 scripts/opencode_adapter.py
+```
+
+It defaults to `opencode/mimo-v2.6-flash-free` and reads
+`AIN_OPENCODE_BIN` and `AIN_OPENCODE_MODEL` from the environment.
+OpenCode must already be installed and its chosen model available. This is a
+provider adapter, not a sandbox. The model and CLI may have their own side
+effects, so use OS isolation for untrusted model output or workflows.
