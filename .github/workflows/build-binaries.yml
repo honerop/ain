@@ -138,3 +138,74 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 30
+
+  publish-release:
+    name: Publish pre-release with tested binaries
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release commit and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and avoid republishing existing tags
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')"
+          tag="v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $tag already exists; do not replace its assets."
+            exit 0
+          fi
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            tagged_sha="$(git rev-list -n 1 "refs/tags/$tag")"
+            if [ "$tagged_sha" != "$GITHUB_SHA" ]; then
+              echo "::error::Tag $tag already points to $tagged_sha, not the current commit. Bump the Cargo version or publish manually."
+              exit 1
+            fi
+          fi
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+
+      - name: Download binaries from this verified build
+        if: steps.version.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ainc-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify all five platforms and checksums
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          cd dist
+          test "$(find . -maxdepth 1 -type f -name '*.sha256' | wc -l)" -eq 5
+          test "$(find . -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) | wc -l)" -eq 5
+          sha256sum --check ./*.sha256
+
+      - name: Publish GitHub pre-release
+        if: steps.version.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          notes="docs/releases/$TAG.md"
+          if [ ! -f "$notes" ]; then
+            notes="CHANGELOG.md"
+          fi
+          gh release create "$TAG" \
+            dist/*.tar.gz dist/*.zip dist/*.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Ain $TAG (experimental)" \
+            --notes-file "$notes" \
+            --prerelease
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets
