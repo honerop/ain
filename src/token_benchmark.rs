@@ -85,5 +85,10 @@ mod tests {
     #[test] fn real_tokenizer_known_example(){
         let enc=tiktoken::get_encoding("o200k_base").unwrap();
         assert_eq!(enc.count("hello world"),2);
+        let verbose=include_str!("../benchmarks/experiments/lists-original.ain");
+        let compact=include_str!("../benchmarks/tokens/lists/ain.ain");
+        assert!(enc.count(compact)<enc.count(verbose),"token-minimal list form should be smaller");
+        assert_eq!(enc.count(verbose),33);
+        assert_eq!(enc.count(compact),23);
     }
 }

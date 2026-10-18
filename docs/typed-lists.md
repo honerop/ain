@@ -41,3 +41,40 @@ and no new crates or GTK/browser dependencies are needed.
 
 Tests run compiled binaries with integer, string and nested lists, map/filter/
 fold, element type errors and callback signature checks.
+
+## Optional token-efficient syntax (Rust backend)
+
+The compiler accepts nonempty list literals, with or without whitespace next
+to the square brackets. Elements are prefix expressions, not just primitive
+values. For example:
+
+```ain
+inc x = + x 1
+xs = [1 2 3]
+print lm inc xs
+```
+
+This is exactly equivalent to:
+
+```ain
+inc x = + x 1
+xs = listpush listpush listof 1 2 3
+print listmap "inc" xs
+```
+
+Aliases for common typed list operations are optional and canonicalized by the
+parser, with **no new runtime code**: `lo` = `listof`, `lp` = `listpush`,
+`ln` = `listlen`, `lm` = `listmap`, `lf` = `listfilter`,
+`ld` = `listfold`, `lh` = `listhead`, `lt` = `listlast`,
+`lz` = `listzip`. These are reserved words and cannot be redefined.
+Typed collection callbacks may be bare function names, e.g. `lm inc xs`,
+or the original quoted name `listmap "inc" xs`.
+
+Brackets on an empty list (`[]`) are deliberately rejected until there is a
+sound way to infer the element type; mixed-type list literals also fail type
+checking. The self-hosted C compiler does **not** implement typed list syntax
+and continues to handle the original primitive language subset.
+
+Shorter source in an individual tokenizer does not prove a reduction in total
+AI model tokens. The literal and alias comparison is exercised with the same
+`o200k_base` tokenizer as the main benchmark.

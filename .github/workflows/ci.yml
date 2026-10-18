@@ -18,6 +18,10 @@ jobs:
         run: |
           cargo test --features token-bench
           cargo run --features token-bench -- tokens benchmarks/tokens/*/* --json
+      - name: Measure compact list syntax against original
+        run: |
+          cargo run --quiet --features token-bench -- tokens \
+            benchmarks/tokens/lists/ain.ain benchmarks/experiments/*.ain --json
       - name: Rust-first three-stage bootstrap
         run: ./scripts/bootstrap.sh
       - name: Independent reference bootstrap
