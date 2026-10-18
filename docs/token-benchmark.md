@@ -69,3 +69,29 @@ Other sites, including [honerop/personal](https://github.com/honerop/personal),
 can fetch the public JSON from `main` and cache it. This is a published
 snapshot that refreshes after source changes, **not real-time AI model
 generation performance**, and it does not include model API token usage.
+
+## Compact list syntax (18 October 2026)
+
+The initial five-task baseline above used 33 Ain tokens for list mapping.
+The compiler now supports readable list literals, optional short list
+operation aliases, and unquoted callback names. The list benchmark retains
+the same `xs` binding and result but now uses:
+
+```ain
+inc x = + x 1
+xs = [1 2 3]
+print ln lm inc xs
+```
+
+Measured with **the same `o200k_base` tokenizer**: 23 rather than 33 tokens
+for the list task (30.3% fewer). The five-task Ain total decreases from
+108 to **98 tokens**, against unchanged Python 126, TypeScript 150, Rust
+192. On this limited corpus the updated source-token savings are **22.2%**
+versus Python, **34.7%** versus TypeScript and **49.0%** versus Rust.
+
+Alternative working variants are retained in `benchmarks/experiments`:
+the original verbose 33-token code, an alias-only 26-token version, and
+a 19-token version without the unused `xs` binding. We use 23 tokens for
+the official comparison to keep the source structure aligned with the
+existing other-language examples. This is a *source token count*, not proof
+of end-to-end LLM token savings.

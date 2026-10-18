@@ -116,7 +116,14 @@ pub fn format_source(source: &str) -> Result<String, CompileError> {
                 }
             }
         }
-        output.push_str(&formatted.join(" "));
+        let mut joined = String::new();
+        for (index, word) in formatted.iter().enumerate() {
+            if index > 0 && word != "]" && formatted[index - 1] != "[" {
+                joined.push(' ');
+            }
+            joined.push_str(word);
+        }
+        output.push_str(&joined);
         if let Some(offset) = comment_offset {
             if !formatted.is_empty() { output.push(' '); }
             output.push_str(line[offset..].trim_end());
@@ -1184,6 +1191,14 @@ pub fn compile(source: &str) -> Result<Compilation, CompileError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn formatter_preserves_compact_list_brackets() {
+        let source="xs = [1 2 3]\\nprint ln lm inc xs\\n";
+        // The source is parsed before formatting, so declare the callback.
+        let source=format!("inc x = + x 1\\n{source}");
+        let formatted=format_source(&source).unwrap();
+        assert_eq!(formatted, source);
+        assert_eq!(format_source(&formatted).unwrap(),formatted);
+    }
     #[test] fn nonempty_list_literals_are_typed_and_nested() {
         let canonical="print listlen listpush listpush listof 1 2 3";
         let literal="print listlen [1 2 3]";
