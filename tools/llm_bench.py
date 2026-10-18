@@ -306,6 +306,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--export-prompts", type=Path, metavar="DIR")
     mode.add_argument("--responses-dir", type=Path, metavar="DIR")
+    mode.add_argument("--api-responses-dir", type=Path, metavar="DIR",
+                      help="Generate with an OpenAI-compatible API, then evaluate")
     parser.add_argument("--tasks", type=Path, default=DEFAULT_TASKS)
     parser.add_argument("--languages", default="ain,python,rust,typescript")
     parser.add_argument("--attempts", type=int, default=1)
@@ -313,6 +315,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--ainc", default=os.environ.get("AINC", "ainc"))
     parser.add_argument("--timeout", type=float, default=3)
     parser.add_argument("--compile-timeout", type=float, default=120)
+    parser.add_argument("--api-base-url", default="https://api.openai.com/v1",
+                        help="Provider base URL, e.g. https://api.openai.com/v1")
+    parser.add_argument("--model", help="Model ID for --api-responses-dir")
+    parser.add_argument("--api-key-env", default="OPENAI_API_KEY",
+                        help="Environment variable containing API key (not key itself)")
+    parser.add_argument("--no-api-key", action="store_true",
+                        help="Omit Authorization for a local model server")
+    parser.add_argument("--allow-insecure-http", action="store_true",
+                        help="Allow plaintext HTTP to non-loopback servers (unsafe)")
+    parser.add_argument("--api-timeout", type=float, default=120)
+    parser.add_argument("--api-retries", type=int, default=0,
+                        help="Retry HTTP 429/5xx only; duplicates may be billed")
+    parser.add_argument("--temperature", type=float,
+                        help="Omitted by default for broad model compatibility")
+    parser.add_argument("--max-output-tokens", type=int,
+                        help="Optional maximum completion tokens")
+    parser.add_argument("--max-tokens-field", choices=["max_completion_tokens", "max_tokens"],
+                        default="max_completion_tokens")
+    parser.add_argument("--generate-only", action="store_true",
+                        help="Generate model source without executing programs")
     parser.add_argument(
         "--allow-unsafe-execution", action="store_true",
         help="Acknowledge that generated code is compiled/run without OS sandboxing",
@@ -325,7 +347,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--languages must be distinct values from ain,python,rust,typescript")
     if args.attempts < 1 or args.timeout <= 0 or args.compile_timeout <= 0:
         parser.error("attempts and timeouts must be positive")
-    if args.responses_dir and not args.allow_unsafe_execution:
+    if args.api_responses_dir:
+        if not args.model or not args.model.strip():
+            parser.error("--model is required with --api-responses-dir")
+        if not args.api_key_env.isidentifier():
+            parser.error("--api-key-env must be a valid environment variable name")
+        if args.api_timeout <= 0 or not 0 <= args.api_retries <= 5:
+            parser.error("API timeout must be positive and retries between 0 and 5")
+        if args.temperature is not None and not 0 <= args.temperature <= 2:
+            parser.error("--temperature must be between 0 and 2")
+        if args.max_output_tokens is not None and args.max_output_tokens <= 0:
+            parser.error("--max-output-tokens must be positive")
+        try:
+            llm_provider.endpoint_for(args.api_base_url,
+                                      allow_insecure_http=args.allow_insecure_http)
+        except llm_provider.ProviderError as exc:
+            parser.error(str(exc))
+    elif args.generate_only:
+        parser.error("--generate-only requires --api-responses-dir")
+    if (args.responses_dir or (args.api_responses_dir and not args.generate_only)) and not args.allow_unsafe_execution:
         parser.error("generated programs are NOT sandboxed; supply --allow-unsafe-execution only in an isolated environment")
     return args
 
@@ -342,6 +382,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Wrote {len(tasks) * len(args.languages)} prompts into {args.export_prompts}")
         return 0
 
+    if args.api_responses_dir:
+        generate_responses(tasks, args)
+        if args.generate_only:
+            print(f"Saved responses in {args.api_responses_dir} (no generated code executed)")
+            return 0
+        args.responses_dir = args.api_responses_dir
+
     rows = [
         evaluate(
             task, language, attempt,
@@ -355,14 +402,15 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         "schema": 1,
         "created_utc": dt_utc(),
-        "provider": None,
-        "model": None,
+        "provider": "openai-compatible" if args.api_responses_dir else None,
+        "model": args.model if args.api_responses_dir else None,
         "notes": (
-            "No model provider is configured. Token usage is supplied by responses, "
-            "not measured or estimated by this runner. Candidate execution is not sandboxed."
+            "Usage is copied from API responses, never inferred. "
+            "Generated candidate execution is not sandboxed."
         ),
         "config": {
             "task_ids": [task["id"] for task in tasks],
+            "generation_mode": "api" if args.api_responses_dir else "manual",
             "languages": args.languages, "attempts": args.attempts,
             "runtime_timeout_seconds": args.timeout,
             "compile_timeout_seconds": args.compile_timeout,
