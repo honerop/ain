@@ -1,0 +1,59 @@
+name: LLM benchmark harness
+
+on:
+  push:
+    paths:
+      - 'tools/llm_bench.py'
+      - 'tests/test_llm_bench.py'
+      - 'benchmarks/llm/**'
+      - '.github/workflows/llm-benchmark.yml'
+  pull_request:
+    paths:
+      - 'tools/llm_bench.py'
+      - 'tests/test_llm_bench.py'
+      - 'benchmarks/llm/**'
+      - '.github/workflows/llm-benchmark.yml'
+  workflow_dispatch:
+
+jobs:
+  offline-harness-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test offline LLM evaluation harness
+        run: python3 -m unittest discover -s tests -p 'test_llm_bench.py' -v
+      - name: Verify prompt export with no model provider
+        run: |
+          python3 tools/llm_bench.py --export-prompts /tmp/ain-llm-prompts
+          test -s /tmp/ain-llm-prompts/sum-two/ain/prompt.txt
+      - name: Compile Ain and exercise real native benchmark path
+        run: |
+          cargo build --bin ainc
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          task = next(t for t in json.loads(Path('benchmarks/llm/tasks.json').read_text()) if t['id'] == 'factorial')
+          Path('/tmp/ain-one-task.json').write_text(json.dumps([task]))
+          source = 'fact n = if <= n 1 1 * n fact - n 1\nprint fact num trim input _\n'
+          target = Path('/tmp/ain-candidate-responses/factorial/ain')
+          target.mkdir(parents=True, exist_ok=True)
+          (target / '1.json').write_text(json.dumps({'source': source}))
+          PY
+          python3 tools/llm_bench.py \
+            --tasks /tmp/ain-one-task.json \
+            --responses-dir /tmp/ain-candidate-responses \
+            --languages ain \
+            --ainc "$PWD/target/debug/ainc" \
+            --report /tmp/ain-llm-smoke.json \
+            --allow-unsafe-execution
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path('/tmp/ain-llm-smoke.json').read_text())
+          assert result['summary']['ain']['first_attempt_tasks_passed'] == 1, result['results']
+          assert result['model'] is None and result['provider'] is None
+          PY

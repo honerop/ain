@@ -27,6 +27,17 @@ The long-term goal is a **large, convenient standard library** with many common 
 
 **Current reality:** AIN is still pre-alpha. Its built-in operations are limited, and many capabilities described here are **goals, not implemented features**.
 
+## Real LLM code evaluation (no model provider configured)
+
+A provider-neutral harness can export the same tasks as prompts for Ain, Python,
+Rust and TypeScript, then compile and run supplied LLM-generated responses
+against multiple validation cases. It reports success, compiler errors, timings,
+and **only actual usage counts supplied with the responses**. No provider is
+connected, so no LLM generation benchmark scores are claimed yet.
+
+See [real LLM benchmark instructions](docs/llm-benchmark.md).
+Do not execute untrusted generated code outside proper OS-level isolation.
+
 ## Functional-first programming foundation
 
 Ain is functional-first, **not purely functional**: immutable-style data

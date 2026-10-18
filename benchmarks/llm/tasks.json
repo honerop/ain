@@ -1,0 +1,134 @@
+[
+  {
+    "id": "sum-two",
+    "prompt": "Standard input contains exactly two signed decimal integers separated by whitespace. Print their sum as one decimal integer followed by a newline.",
+    "cases": [
+      {
+        "stdin": "2 3\n",
+        "stdout": "5\n"
+      },
+      {
+        "stdin": "-14 9\n",
+        "stdout": "-5\n"
+      },
+      {
+        "stdin": "0 0\n",
+        "stdout": "0\n"
+      },
+      {
+        "stdin": "123456 654321\n",
+        "stdout": "777777\n"
+      }
+    ]
+  },
+  {
+    "id": "factorial",
+    "prompt": "Standard input contains one decimal integer n between 0 and 12 inclusive. Print n factorial, where 0 factorial is 1.",
+    "cases": [
+      {
+        "stdin": "0\n",
+        "stdout": "1\n"
+      },
+      {
+        "stdin": "1\n",
+        "stdout": "1\n"
+      },
+      {
+        "stdin": "6\n",
+        "stdout": "720\n"
+      },
+      {
+        "stdin": "12\n",
+        "stdout": "479001600\n"
+      }
+    ]
+  },
+  {
+    "id": "reverse-lines",
+    "prompt": "Standard input consists of one to five nonempty ASCII lines and ends with a newline. Print the same lines in reverse order, preserving the text of each line, with a final newline.",
+    "cases": [
+      {
+        "stdin": "alpha\nbeta\ngamma\n",
+        "stdout": "gamma\nbeta\nalpha\n"
+      },
+      {
+        "stdin": "only\n",
+        "stdout": "only\n"
+      },
+      {
+        "stdin": "one\ntwo\n",
+        "stdout": "two\none\n"
+      },
+      {
+        "stdin": "a\nbb\nccc\ndddd\n",
+        "stdout": "dddd\nccc\nbb\na\n"
+      }
+    ]
+  },
+  {
+    "id": "word-count",
+    "prompt": "Standard input is ASCII text that may contain spaces, tabs and newlines. Print the count of whitespace-delimited words as a decimal integer, with a newline. An empty input contains zero words.",
+    "cases": [
+      {
+        "stdin": "red blue green\n",
+        "stdout": "3\n"
+      },
+      {
+        "stdin": "\n",
+        "stdout": "0\n"
+      },
+      {
+        "stdin": "a\tb  c\n d\n",
+        "stdout": "4\n"
+      },
+      {
+        "stdin": "one",
+        "stdout": "1\n"
+      }
+    ]
+  },
+  {
+    "id": "normalize-text",
+    "prompt": "Read all standard input as UTF-8 text. Remove whitespace at both ends, lowercase the remaining text using normal Unicode lowercase rules, and print the result followed by a newline.",
+    "cases": [
+      {
+        "stdin": "  HeLLo  \n",
+        "stdout": "hello\n"
+      },
+      {
+        "stdin": "Ain\n",
+        "stdout": "ain\n"
+      },
+      {
+        "stdin": "  Straße  \n",
+        "stdout": "straße\n"
+      },
+      {
+        "stdin": "   \n",
+        "stdout": "\n"
+      }
+    ]
+  },
+  {
+    "id": "sum-csv",
+    "prompt": "Standard input contains one line with 1 to 10 signed decimal integers separated by commas. There may be spaces around each number. Print the sum followed by a newline.",
+    "cases": [
+      {
+        "stdin": "1,2,3\n",
+        "stdout": "6\n"
+      },
+      {
+        "stdin": "-5, 10, -2\n",
+        "stdout": "3\n"
+      },
+      {
+        "stdin": "0\n",
+        "stdout": "0\n"
+      },
+      {
+        "stdin": "  11 , -20 , 13 , 7 \n",
+        "stdout": "11\n"
+      }
+    ]
+  }
+]
