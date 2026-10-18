@@ -31,9 +31,9 @@ python3 tools/llm_bench.py \
 ~~~
 
 The base URL can be a vendor's compatible API prefix (e.g.
-\`https://provider.example/api/v1\`) or an entire
-\`/chat/completions\` endpoint. The benchmark appends
-\`/chat/completions\` if needed. Only the Chat Completions JSON protocol is
+`https://provider.example/api/v1`) or an entire
+`/chat/completions` endpoint. The benchmark appends
+`/chat/completions` if needed. Only the Chat Completions JSON protocol is
 implemented, not the OpenAI Responses API.
 
 **IMPORTANT:** Generated programs are not sandboxed. Compilation and execution
@@ -42,7 +42,7 @@ command in a properly isolated VM/container with filesystem and network limits.
 The opt-in flag only acknowledges the risk; it does not provide isolation.
 
 If you want **just API generation, without executing generated code**, omit the
-execution acknowledgement and add \`--generate-only\`:
+execution acknowledgement and add `--generate-only`:
 
 ~~~sh
 python3 tools/llm_bench.py \
@@ -89,28 +89,28 @@ python3 tools/llm_bench.py \
 ~~~
 
 Plain HTTP is accepted automatically for loopback addresses. For nonlocal
-HTTP, \`--allow-insecure-http\` is required and not recommended.
+HTTP, `--allow-insecure-http` is required and not recommended.
 
 ### Optional API controls
 
-- \`--temperature 0.2\` sends a sampling temperature; by default it is
+- `--temperature 0.2` sends a sampling temperature; by default it is
   omitted because some models reject explicit temperatures.
-- \`--max-output-tokens 2048\` sends \`max_completion_tokens\` (including
+- `--max-output-tokens 2048` sends `max_completion_tokens` (including
   hidden reasoning tokens for models that use them). Providers requiring
-  \`max_tokens\` can use \`--max-tokens-field max_tokens\`. Default: no limit
+  `max_tokens` can use `--max-tokens-field max_tokens`. Default: no limit
   field.
-- \`--api-timeout 120\` sets the request timeout in seconds.
-- \`--api-retries 2\` retries explicit HTTP 429/5xx responses. Default: 0,
+- `--api-timeout 120` sets the request timeout in seconds.
+- `--api-retries 2` retries explicit HTTP 429/5xx responses. Default: 0,
   because retries can result in additional charges. Ambiguous connection
   failures are never retried automatically.
-- \`--languages ain,python\` narrows the comparison; \`--attempts 1\` controls
+- `--languages ain,python` narrows the comparison; `--attempts 1` controls
   independent generation attempts per task. Existing response files are
   reused when the requested model is unchanged. Use a *different directory*
   when you change models or providers.
 
 No key is written to response JSON or reports. API usage values are saved
 **only if the provider returned both prompt and completion token counts**.
-If the provider does not report them, usage remains \`null\`; no estimation is
+If the provider does not report them, usage remains `null`; no estimation is
 made. Individual response files also preserve raw model output, chosen model
 and finish reason. Different providers may count tokens differently.
 
@@ -122,9 +122,9 @@ Export prompts with no API or program execution:
 python3 tools/llm_bench.py --export-prompts prompts
 ~~~
 
-Prompts are stored under \`prompts/<task-id>/<language>/prompt.txt\`. Test cases
+Prompts are stored under `prompts/<task-id>/<language>/prompt.txt`. Test cases
 are not included. Write responses under
-\`responses/<task-id>/<language>/1.json\`:
+`responses/<task-id>/<language>/1.json`:
 
 ~~~json
 {
@@ -151,7 +151,7 @@ and model settings, run multiple attempts, and keep model transcripts.
   and exactly matches stdout for every test case.
 - First-attempt success, any success within the attempt budget, compile
   failures, individual test outcomes and process wall-time are saved.
-- The attempt-budget metric is **not** statistical \`pass@k\`.
+- The attempt-budget metric is **not** statistical `pass@k`.
 - Generation time and provider-reported token usage are recorded; they are
   not estimated from source text. Execution time includes process startup.
 - Public benchmark task fixtures are not secret if the model already has
@@ -171,4 +171,4 @@ python3 -m unittest discover -s tests -p 'test_llm_*.py' -v
 CI runs those tests using mocked API requests, then exercises the Ain
 compiler on trusted test source. That checks the harness, not a paid
 model's ability to generate Ain. Separately,
-[\`token-benchmark.md\`](token-benchmark.md) compares source tokens only.
+[`token-benchmark.md`](token-benchmark.md) compares source tokens only.
