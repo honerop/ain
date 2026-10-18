@@ -109,6 +109,13 @@ EXEC_ENV_ALLOWLIST = {
 
 def candidate_environment(cwd: Path) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if k in EXEC_ENV_ALLOWLIST}
+    # The rustup proxy needs its toolchain location even with a temporary HOME.
+    home = os.environ.get("HOME")
+    if home:
+        for name, folder in (("RUSTUP_HOME", ".rustup"), ("CARGO_HOME", ".cargo")):
+            toolchain = Path(home) / folder
+            if name not in env and toolchain.is_dir():
+                env[name] = str(toolchain)
     env["HOME"] = str(cwd)
     env["TMPDIR"] = str(cwd)
     return env
