@@ -1192,10 +1192,8 @@ pub fn compile(source: &str) -> Result<Compilation, CompileError> {
 mod tests {
     use super::*;
     #[test] fn formatter_preserves_compact_list_brackets() {
-        let source="xs = [1 2 3]\\nprint ln lm inc xs\\n";
-        // The source is parsed before formatting, so declare the callback.
-        let source=format!("inc x = + x 1\\n{source}");
-        let formatted=format_source(&source).unwrap();
+        let source="inc x = + x 1\nxs = [1 2 3]\nprint ln lm inc xs\n";
+        let formatted=format_source(source).unwrap();
         assert_eq!(formatted, source);
         assert_eq!(format_source(&formatted).unwrap(),formatted);
     }
