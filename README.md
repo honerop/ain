@@ -233,6 +233,21 @@ greet _
 
 For more examples, see [`examples/`](examples/) and the [language guide](docs/language.md).
 
+## Download prebuilt compiler binaries
+
+Every push to `main` and every pull request builds release versions of
+`ainc` for Linux x86-64, Linux ARM64, macOS Intel/Apple Silicon and Windows
+x86-64. Choose a recent successful run under
+[GitHub Actions > Build ainc binaries](https://github.com/honerop/ain/actions/workflows/build-binaries.yml)
+and download the `ainc-<platform>` artifact. Each archive includes the binary,
+license, README, and SHA-256 checksum. Artifacts expire after 30 days.
+
+Linux archives use statically linked **musl** binaries, so the compiler itself
+does not require the usual glibc dynamic loader on NixOS. However, building
+Ain programs still calls external `rustc` (or Clang for the LLVM subset)
+and generated applications may need their own native system libraries.
+The compiler is not a standalone installer for those toolchains.
+
 ## Quick start
 
 **NixOS / Nix (recommended)**

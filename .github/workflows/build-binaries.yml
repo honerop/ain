@@ -1,0 +1,140 @@
+name: Build ainc binaries
+
+# Each update to main gets downloadable binaries. PRs validate portability.
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-binaries-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            extension: ''
+            package_format: tar.gz
+          - platform: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            extension: ''
+            package_format: tar.gz
+          - platform: macos-aarch64
+            runner: macos-15
+            target: aarch64-apple-darwin
+            extension: ''
+            package_format: tar.gz
+          - platform: macos-x86_64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            extension: ''
+            package_format: tar.gz
+          - platform: windows-x86_64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            extension: .exe
+            package_format: zip
+    defaults:
+      run:
+        shell: bash
+    env:
+      AIN_PLATFORM: ${{ matrix.platform }}
+      AIN_TARGET: ${{ matrix.target }}
+      AIN_EXTENSION: ${{ matrix.extension }}
+      AIN_FORMAT: ${{ matrix.package_format }}
+    steps:
+      - name: Check out the source
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl toolchain for static Linux binaries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build release compiler
+        run: cargo build --release --target "$AIN_TARGET" --bin ainc
+
+      - name: Verify the executable
+        run: |
+          bin="target/$AIN_TARGET/release/ainc$AIN_EXTENSION"
+          test -f "$bin"
+          "./$bin" --version
+          printf 'print 42\n' > binary-smoke.ain
+          "./$bin" check binary-smoke.ain
+
+      - name: Verify Linux binaries have no dynamic loader
+        if: runner.os == 'Linux'
+        run: |
+          bin="target/$AIN_TARGET/release/ainc"
+          file "$bin"
+          if readelf -l "$bin" | grep -q INTERP; then
+            echo "Linux executable unexpectedly requires a dynamic interpreter"
+            exit 1
+          fi
+
+      - name: Package compiler and checksums
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          import tarfile
+          import zipfile
+
+          platform = os.environ["AIN_PLATFORM"]
+          target = os.environ["AIN_TARGET"]
+          extension = os.environ["AIN_EXTENSION"]
+          package_format = os.environ["AIN_FORMAT"]
+          binary = Path("target") / target / "release" / ("ainc" + extension)
+          assert binary.is_file(), f"missing executable: {binary}"
+          output = Path("dist")
+          output.mkdir(exist_ok=True)
+          root = "ainc-" + platform
+          archive = output / (root + "." + package_format)
+          items = [(binary, root + "/" + binary.name),
+                   (Path("LICENSE"), root + "/LICENSE"),
+                   (Path("README.md"), root + "/README.md")]
+          if package_format == "zip":
+              with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+                  for source, name in items:
+                      bundle.write(source, arcname=name)
+          else:
+              with tarfile.open(archive, "w:gz") as bundle:
+                  for source, name in items:
+                      bundle.add(source, arcname=name)
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          (output / (archive.name + ".sha256")).write_text(
+              f"{digest}  {archive.name}\n", encoding="utf-8")
+          print(f"Packaged {archive} ({archive.stat().st_size} bytes)")
+          PY
+
+      - name: Upload downloadable binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ainc-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
