@@ -26,6 +26,15 @@ fn execute(source: &str) -> String {
 }
 
 #[test]
+fn token_efficient_list_syntax_matches_long_form() {
+    let expected="[2,3,4]\\n";
+    let full="inc x = + x 1\\nxs = listpush listpush listof 1 2 3\\nprint listmap \\"inc\\" xs\\n";
+    let short="inc x = + x 1\\nxs = [1 2 3]\\nprint lm inc xs\\n";
+    assert_eq!(execute(full),expected);
+    assert_eq!(execute(short),expected);
+    assert_eq!(execute("print [ + 1 2 + 3 4 ]\\n"),"[3,7]\\n");
+}
+#[test]
 fn typed_list_zip_enumerate_and_safe_head_last() {
     let program = "xs = listpush listof 10 20\nys = listpush listof \"a\" \"b\"\nprint tuplefst listat listzip xs ys 0\nprint tuplesnd listat listzip xs ys 1\nprint option_get listhead xs 0\nprint option_get listlast ys \"missing\"\nprint tuplefst listat listenumerate xs 1\n";
     assert_eq!(execute(program), "10\nb\n10\nb\n1\n");
