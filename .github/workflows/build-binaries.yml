@@ -14,13 +14,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-binaries-${{ github.workflow }-${{ github.ref }
+  group: build-binaries-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: ${{ matrix.platform }
-    runs-on: ${{ matrix.runner }
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -55,10 +55,10 @@ jobs:
       run:
         shell: bash
     env:
-      AIN_PLATFORM: ${{ matrix.platform }
-      AIN_TARGET: ${{ matrix.target }
-      AIN_EXTENSION: ${{ matrix.extension }
-      AIN_FORMAT: ${{ matrix.package_format }
+      AIN_PLATFORM: ${{ matrix.platform }}
+      AIN_TARGET: ${{ matrix.target }}
+      AIN_EXTENSION: ${{ matrix.extension }}
+      AIN_FORMAT: ${{ matrix.package_format }}
     steps:
       - name: Check out the source
         uses: actions/checkout@v4
@@ -66,7 +66,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }
+          targets: ${{ matrix.target }}
 
       - name: Install musl toolchain for static Linux binaries
         if: runner.os == 'Linux'
@@ -134,7 +134,7 @@ jobs:
       - name: Upload downloadable binary
         uses: actions/upload-artifact@v4
         with:
-          name: ainc-${{ matrix.platform }
+          name: ainc-${{ matrix.platform }}
           path: dist/*
           if-no-files-found: error
           retention-days: 30
