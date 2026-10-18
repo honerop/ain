@@ -27,7 +27,7 @@ fn lower_expr(e: &Expr, env: &HashMap<String, Ty>, checked: &Checked, line: usiz
                     "+"|"-"|"*"|"/"|"%"|"min"|"max"|"pow"|"neg"|"abs"|"clamp" => Ty::Int,
                     "=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"not" => Ty::Bool,
                     "if" => args[1].ty.clone(),
-                    "print" => Ty::Unit,
+                    "print"|"assert" => Ty::Unit,
                     _ => return Err(err(line, format!("LLVM backend does not support '{name}' yet; use the Rust backend"))),
                 }
             };
@@ -88,7 +88,7 @@ fn lower(checked: &Checked) -> Result<Module, CompileError> {
     Ok(Module {functions,items})
 }
 
-fn ty(t:&Ty) -> &'static str { match t {Ty::Int=>"i64",Ty::Bool=>"i1",Ty::Unit=>"i8",Ty::Str=>"ptr",Ty::Data|Ty::Cell|Ty::Task|Ty::List(_)|Ty::Map(_)|Ty::Tuple(_,_)|Ty::Option(_)|Ty::Result(_)=>unreachable!("Structured types are not supported by AIR/LLVM"),Ty::Var(_)=>unreachable!("types must be resolved") } }
+fn ty(t:&Ty) -> &'static str { match t {Ty::Int=>"i64",Ty::Bool=>"i1",Ty::Unit=>"i8",Ty::Str=>"ptr",Ty::Data|Ty::Cell|Ty::Task|Ty::List(_)|Ty::Map(_)|Ty::Tuple(_,_)|Ty::Tuple3(_,_,_)|Ty::Option(_)|Ty::Result(_)=>unreachable!("Structured types are not supported by AIR/LLVM"),Ty::Var(_)=>unreachable!("types must be resolved") } }
 fn air_node(n:&Node) -> String {
     match &n.kind {
         Kind::Int(v) => format!("{v}:i64"), Kind::Bool(v) => format!("{v}:bool"), Kind::Unit => "_:unit".into(),
@@ -180,6 +180,7 @@ impl Emitter {
                     "min"|"max"=> {let pred=if name=="min"{"slt"}else{"sgt"};let c=self.binary(&format!("icmp {pred}"),"i64",&x[0],&x[1]);let v=self.tmp();self.line(format!("{v} = select i1 {c}, i64 {}, i64 {}",x[0],x[1]));v},
                     "clamp"=>{let invalid=self.binary("icmp sgt","i64",&x[1],&x[2]);self.trap_if(&invalid);let lo=self.gen_minmax("max",&x[0],&x[1]);self.gen_minmax("min",&lo,&x[2])},
                     "pow"=>{let v=self.tmp();self.line(format!("{v} = call i64 @ain_pow(i64 {}, i64 {})",x[0],x[1]));v},
+                    "assert"=>{let inverted=self.binary("xor","i1",&x[0],"1");self.trap_if(&inverted);"0".into()},
                     "print"=> {
                         let fmt=if args[0].ty==Ty::Int {"@fmt_i64"}else{"@fmt_str"};
                         let printed=match args[0].ty {
@@ -225,6 +226,14 @@ fn emit_llvm(m:&Module)->String {
     e.line("ret i32 0");out.push_str("define i32 @main() {\n");out.push_str(&e.code);out.push_str("}\n");out
 }
 
-fn module(source:&str)->Result<Module,CompileError>{let p=parse(source)?;let c=check(p)?;lower(&c)}
+fn module(source:&str)->Result<Module,CompileError>{
+    let p=parse(source)?;
+    let c=check(p)?;
+    if c.function_types.values().any(|sig|
+        sig.args.iter().chain(std::iter::once(&sig.ret)).any(|ty| {let mut vars=std::collections::BTreeSet::new();ty.variables(&mut vars);!vars.is_empty()})) {
+        return Err(err(1,"LLVM does not support polymorphic functions yet; use the Rust backend"));
+    }
+    lower(&c)
+}
 pub fn dump(source:&str)->Result<String,CompileError>{module(source).map(|m|air_text(&m))}
 pub fn llvm(source:&str)->Result<String,CompileError>{module(source).map(|m|emit_llvm(&m))}

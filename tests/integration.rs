@@ -4,12 +4,14 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicU64, Ordering};
+static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn execute(source: &str) -> String {
     let generated = compile(source).expect("AIN compilation").rust;
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    let directory: PathBuf = std::env::temp_dir().join(format!("ain-test-{}-{stamp}", std::process::id()));
-    fs::create_dir_all(&directory).unwrap();
+    let directory: PathBuf = std::env::temp_dir().join(format!("ain-test-{}-{stamp}-{}", std::process::id(), TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)));
+    fs::create_dir(&directory).unwrap();
     let file = directory.join("main.rs");
     let binary = directory.join(format!("run{}", std::env::consts::EXE_SUFFIX));
     fs::write(&file, generated).unwrap();
@@ -23,6 +25,42 @@ fn execute(source: &str) -> String {
     String::from_utf8(output.stdout).unwrap()
 }
 
+#[test]
+fn typed_list_zip_enumerate_and_safe_head_last() {
+    let program = "xs = listpush listof 10 20\nys = listpush listof \"a\" \"b\"\nprint tuplefst listat listzip xs ys 0\nprint tuplesnd listat listzip xs ys 1\nprint option_get listhead xs 0\nprint option_get listlast ys \"missing\"\nprint tuplefst listat listenumerate xs 1\n";
+    assert_eq!(execute(program), "10\nb\n10\nb\n1\n");
+}
+#[test]
+fn assert_and_typed_triples() {
+    assert_eq!(execute("assert == + 2 3 5\nvalues = tuple3 10 \"north\" true\nprint tuple3fst values\nprint tuple3snd values\nprint tuple3third values\nprint values\n"), "10\nnorth\ntrue\n(10, north, true)\n");
+    assert!(compile("print + tuple3snd tuple3 1 \"x\" true 1").is_err());
+}
+
+#[test]
+fn inferred_generic_calls_and_recursive_groups() {
+    let source = "id x = x\nforward x = id x\ncombine a b = tuple2 a b\nrepeat n x = if == n 0 x repeat - n 1 x\nprint id 42\nprint id \"hello\"\nprint forward true\nprint combine 7 \"north\"\nprint repeat 3 99\nprint repeat 2 \"again\"\n";
+    assert_eq!(execute(source),"42\nhello\ntrue\n(7, north)\n99\nagain\n");
+}
+#[test]
+fn generic_equality_and_typed_callbacks() {
+    let src="id x = x\nsame x y = == x y\nprint same 7 7\nprint same \"a\" \"b\"\nprint listmap \"id\" listof 42\nprint listmap \"id\" listof \"works\"\n";
+    assert_eq!(execute(src),"true\nfalse\n[42]\n[works]\n");
+}
+#[test]
+fn generic_bounds_propagate_across_forwarding() {
+    let source="sink x = print x\nrelay x = sink x\nequal a b = == a b\nrelay_equal x y = equal x y\nrelay 42\nrelay \"hello\"\nprint relay_equal 5 5\nprint relay_equal \"a\" \"b\"\n";
+    assert_eq!(execute(source),"42\nhello\ntrue\nfalse\n");
+}
+#[test]
+fn generic_mutually_recursive_functions() {
+    let src="a n x = if == n 0 x b - n 1 x\nb n x = if == n 0 x a - n 1 x\nprint a 2 91\nprint b 3 \"ok\"\n";
+    assert_eq!(execute(src),"91\nok\n");
+}
+#[test]
+fn generic_containers_and_forward_references() {
+    let source="first xs = option_get listhead xs 0\nident x = x\nprint first listof 31\nprint ident listof \"a\"\nprint ident listof 2\n";
+    assert_eq!(execute(source),"31\n[a]\n[2]\n");
+}
 #[test]
 fn arithmetic_program() {
     assert_eq!(execute(include_str!("../examples/arithmetic.ain")), "25\n");

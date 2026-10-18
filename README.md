@@ -36,7 +36,9 @@ mutable reference cells and controlled side effects remain available.
 The native backend now has experimental structured `Data` values with lists,
 records, tuple-style pairs, strict JSON parsing, canonical JSON output,
 `map`, `filter`, `fold`, iteration and state cells. The compiler also
-offers `ainc check-json` for machine-readable diagnostics.
+offers `ainc check-json` for machine-readable diagnostics. User functions now
+have experimental inferred parametric types in the Rust backend; LLVM explicitly
+rejects polymorphic definitions until its specialization path is implemented.
 
 See [the functional data guide](docs/functional-data.md). These are new
 pre-alpha capabilities; more extensive static types, concurrent tasks,

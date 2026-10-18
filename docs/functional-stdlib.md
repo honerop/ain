@@ -39,3 +39,22 @@ future work.
 
 Generated-code tests verify transforms on integer/string/nested lists,
 Unicode text and compile-time rejection of invalid combinations.
+
+## Safe list access and typed combinations
+
+`listhead xs` and `listlast xs` return `Option<T>` instead of panicking
+on empty lists. Use `option_get xs fallback` to recover a value of the same
+element type.
+
+`listzip xs ys` returns a `List<Tuple<A,B>>`, truncated to the shorter
+input. `listenumerate xs` returns a `List<Tuple<Int,T>>` with zero-based
+indices. Element types are inferred and checked. These operations are
+currently available in the Rust backend only.
+
+```text
+xs = listpush listof 10 20
+ys = listpush listof "a" "b"
+print tuplesnd listat listzip xs ys 1
+print option_get listhead xs 0
+print tuplefst listat listenumerate xs 1
+```

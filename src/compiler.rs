@@ -145,9 +145,9 @@ fn builtin_arity(name: &str) -> Option<usize> {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
         "ffi2" => 4,
-        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend" => 2,
-        "chat"|"put"|"fold"|"iterate"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
-        "not"|"neg"|"abs"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr" => 1,
+        "run"|"gui"|"guiupdate"|"browser"|"pair"|"push"|"get"|"field"|"hasfield"|"map"|"filter"|"setstate"|"swapstate"|"each"|"spawn"|"fswrite"|"httppost"|"listpush"|"listat"|"listmap"|"listfilter"|"option_get"|"result_get"|"mapone"|"maphas"|"mapremove"|"wavwrite"|"svgwrite"|"gltfwrite"|"tcprequest"|"httpserveonce"|"ffi0"|"tuple2"|"pathjoin"|"processrun"|"split"|"strjoin"|"listtake"|"listdrop"|"listappend"|"listzip" => 2,
+        "chat"|"put"|"fold"|"iterate"|"tuple3"|"sqlquery"|"sqlexec"|"listfold"|"httprequest"|"mapset"|"mapat"|"ffi1" => 3,
+        "not"|"neg"|"abs"|"assert"|"print"|"len"|"upper"|"lower"|"trim"|"str"|"word"|"skip"|"num"|"isnum"|"input"|"argv"|"readline"|"json"|"tryjson"|"encode"|"array"|"record"|"nil"|"boxint"|"boxstr"|"boxbool"|"asint"|"astext"|"asbool"|"size"|"keys"|"cell"|"readstate"|"fsread"|"fsexists"|"environ"|"httpget"|"ready"|"wait"|"poll"|"csvparse"|"trycsv"|"csvwrite"|"utf8bytes"|"frombytes"|"b64encode"|"b64decode"|"zpack"|"zunpack"|"listof"|"listlen"|"option_some"|"option_none"|"option_has"|"result_ok"|"result_err"|"result_valid"|"result_error"|"tryread"|"guitick"|"maplen"|"mapkeys"|"mapvalues"|"tomlparse"|"tomlwrite"|"tuplefst"|"tuplesnd"|"tupleswap"|"tuple3fst"|"tuple3snd"|"tuple3third"|"fslist"|"fsmkdir"|"fsremove"|"workingdir"|"lines"|"listreverse"|"listflatten"|"sortint"|"sortstr"|"listhead"|"listlast"|"listenumerate" => 1,
         _ => return None,
     })
 }
@@ -233,7 +233,7 @@ fn parse(source: &str) -> Result<Program, CompileError> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Map(Box<Ty>), Tuple(Box<Ty>, Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
+enum Ty { Int, Bool, Str, Data, Cell, Task, List(Box<Ty>), Map(Box<Ty>), Tuple(Box<Ty>, Box<Ty>), Tuple3(Box<Ty>, Box<Ty>, Box<Ty>), Option(Box<Ty>), Result(Box<Ty>), Unit, Var(usize) }
 impl Ty {
     fn rust(&self) -> String {
         match self {
@@ -243,15 +243,25 @@ impl Ty {
             Ty::List(inner) => format!("Vec<{}>", inner.rust()),
             Ty::Map(inner) => format!("std::collections::BTreeMap<String, {}>", inner.rust()),
             Ty::Tuple(first, second) => format!("({}, {})", first.rust(), second.rust()),
+            Ty::Tuple3(a,b,c) => format!("({}, {}, {})",a.rust(),b.rust(),c.rust()),
             Ty::Option(inner) => format!("Option<{}>", inner.rust()),
             Ty::Result(inner) => format!("Result<{}, String>", inner.rust()),
-            Ty::Unit => "()".into(), Ty::Var(_) => unreachable!("unresolved type"),
+            Ty::Unit => "()".into(), Ty::Var(i) => format!("G{i}"),
+        }
+    }
+    fn variables(&self, into: &mut std::collections::BTreeSet<usize>) {
+        match self {
+            Ty::Var(id) => {into.insert(*id);}
+            Ty::List(x)|Ty::Map(x)|Ty::Option(x)|Ty::Result(x) => x.variables(into),
+            Ty::Tuple(a,b) => {a.variables(into);b.variables(into);}
+            Ty::Tuple3(a,b,c) => {a.variables(into);b.variables(into);c.variables(into);}
+            _ => {}
         }
     }
 }
-struct Types { substitutions: Vec<Option<Ty>> }
+struct Types { substitutions: Vec<Option<Ty>>, generalized: HashSet<String> }
 impl Types {
-    fn new() -> Self { Self { substitutions: Vec::new() } }
+    fn new() -> Self { Self { substitutions: Vec::new(), generalized: HashSet::new() } }
     fn fresh(&mut self) -> Ty { let id = self.substitutions.len(); self.substitutions.push(None); Ty::Var(id) }
     fn resolve(&mut self, ty: Ty) -> Ty {
         match ty {
@@ -264,16 +274,40 @@ impl Types {
             Ty::List(inner) => Ty::List(Box::new(self.resolve(*inner))),
             Ty::Map(inner) => Ty::Map(Box::new(self.resolve(*inner))),
             Ty::Tuple(first,second) => Ty::Tuple(Box::new(self.resolve(*first)),Box::new(self.resolve(*second))),
+            Ty::Tuple3(a,b,c) => Ty::Tuple3(Box::new(self.resolve(*a)),Box::new(self.resolve(*b)),Box::new(self.resolve(*c))),
             Ty::Option(inner) => Ty::Option(Box::new(self.resolve(*inner))),
             Ty::Result(inner) => Ty::Result(Box::new(self.resolve(*inner))),
             t => t,
         }
+    }
+    fn instantiate(&mut self, sig: &Sig) -> Sig {
+        fn freshen(t: Ty, state: &mut Types, map: &mut HashMap<usize, Ty>) -> Ty {
+            match t {
+                Ty::Var(id) => map.entry(id).or_insert_with(||state.fresh()).clone(),
+                Ty::List(x) => Ty::List(Box::new(freshen(*x,state,map))),
+                Ty::Map(x) => Ty::Map(Box::new(freshen(*x,state,map))),
+                Ty::Option(x) => Ty::Option(Box::new(freshen(*x,state,map))),
+                Ty::Result(x) => Ty::Result(Box::new(freshen(*x,state,map))),
+                Ty::Tuple(a,b) => Ty::Tuple(Box::new(freshen(*a,state,map)),Box::new(freshen(*b,state,map))),
+                Ty::Tuple3(a,b,c) => Ty::Tuple3(Box::new(freshen(*a,state,map)),Box::new(freshen(*b,state,map)),Box::new(freshen(*c,state,map))),
+                other => other,
+            }
+        }
+        let mut map=HashMap::new();
+        let mut args=Vec::new();
+        for t in sig.args.iter().cloned() {
+            let resolved=self.resolve(t);
+            args.push(freshen(resolved,self,&mut map));
+        }
+        let result=self.resolve(sig.ret.clone());
+        Sig {args,ret:freshen(result,self,&mut map)}
     }
     fn occurs(&mut self, id: usize, ty: Ty) -> bool {
         match self.resolve(ty) {
             Ty::Var(j) => id == j,
             Ty::List(inner) | Ty::Map(inner) | Ty::Option(inner) | Ty::Result(inner) => self.occurs(id, *inner),
             Ty::Tuple(a,b) => self.occurs(id,*a) || self.occurs(id,*b),
+            Ty::Tuple3(a,b,c) => self.occurs(id,*a) || self.occurs(id,*b) || self.occurs(id,*c),
             _ => false,
         }
     }
@@ -282,6 +316,7 @@ impl Types {
             Ty::Var(_) => true,
             Ty::List(inner) | Ty::Map(inner) | Ty::Option(inner) | Ty::Result(inner) => Self::unresolved(inner),
             Ty::Tuple(a,b) => Self::unresolved(a) || Self::unresolved(b),
+            Ty::Tuple3(a,b,c) => Self::unresolved(a) || Self::unresolved(b) || Self::unresolved(c),
             _ => false,
         }
     }
@@ -296,6 +331,9 @@ impl Types {
             },
             (Ty::Tuple(a,b),Ty::Tuple(c,d)) => {
                 self.unify(*a,*c,line)?; self.unify(*b,*d,line)
+            },
+            (Ty::Tuple3(a,b,c),Ty::Tuple3(d,e,f)) => {
+                self.unify(*a,*d,line)?; self.unify(*b,*e,line)?; self.unify(*c,*f,line)
             },
             (Ty::List(a), Ty::List(b)) | (Ty::Map(a), Ty::Map(b)) | (Ty::Option(a), Ty::Option(b)) |
                 (Ty::Result(a), Ty::Result(b)) => self.unify(*a, *b, line),
@@ -327,8 +365,9 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 let Expr::Str(fn_name) = &args[0] else {
                     return Err(err(line, "list callbacks require a quoted function name"));
                 };
-                let sig = functions.get(fn_name).ok_or_else(||
+                let original = functions.get(fn_name).ok_or_else(||
                     err(line, format!("unknown list callback '{}'", fn_name)))?;
+                let sig = if types.generalized.contains(fn_name) {types.instantiate(original)} else {original.clone()};
                 let arity = if name == "listfold" { 2 } else { 1 };
                 if sig.args.len() != arity {
                     return Err(err(line, format!("list callback '{}' must take {} parameter(s)", fn_name, arity)));
@@ -356,8 +395,9 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 let Expr::Str(function_name) = &args[0] else {
                     return Err(err(line, "functional operation requires a quoted function name as its first argument"));
                 };
-                let signature = functions.get(function_name).ok_or_else(|| 
+                let original = functions.get(function_name).ok_or_else(|| 
                     err(line, format!("unknown function '{}' in {}", function_name, name)))?;
+                let signature = if types.generalized.contains(function_name) {types.instantiate(original)} else {original.clone()};
                 let expected_arity = if name == "fold" { 2 } else { 1 };
                 if signature.args.len() != expected_arity {
                     return Err(err(line, format!("{} callback must take {} argument(s)", name, expected_arity)));
@@ -376,7 +416,8 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 return Ok(if name == "each" { Ty::Unit } else if name == "spawn" { Ty::Task } else { Ty::Data });
             }
             let actual: Vec<Ty> = args.iter().map(|e| check_expr(e, line, env, functions, types)).collect::<Result<_, _>>()?;
-            if let Some(sig) = functions.get(name) {
+            if let Some(original) = functions.get(name) {
+                let sig = if types.generalized.contains(name) {types.instantiate(original)} else {original.clone()};
                 for (a, expected) in actual.into_iter().zip(&sig.args) { types.unify(a, expected.clone(), line)?; }
                 return Ok(sig.ret.clone());
             }
@@ -390,6 +431,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                 "and"|"or"|"not" => { for a in actual { types.unify(a, boolty.clone(), line)?; } boolty },
                 "if" => { types.unify(actual[0].clone(), boolty, line)?; types.unify(actual[1].clone(), actual[2].clone(), line)?; actual[1].clone() },
                 "print" => Ty::Unit,
+                "assert" => { types.unify(actual[0].clone(), Ty::Bool, line)?; Ty::Unit },
                 "split" => { for arg in actual { types.unify(arg,Ty::Str,line)?; } Ty::List(Box::new(Ty::Str)) },
                 "lines" => { types.unify(actual[0].clone(),Ty::Str,line)?; Ty::List(Box::new(Ty::Str)) },
                 "strjoin" => {
@@ -434,6 +476,7 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                     Ty::Data
                 },
                 "tuple2" => Ty::Tuple(Box::new(actual[0].clone()),Box::new(actual[1].clone())),
+                "tuple3" => Ty::Tuple3(Box::new(actual[0].clone()),Box::new(actual[1].clone()),Box::new(actual[2].clone())),
                 "tuplefst"|"tuplesnd"|"tupleswap" => {
                     let a=types.fresh(); let b=types.fresh();
                     types.unify(actual[0].clone(),Ty::Tuple(Box::new(a.clone()),Box::new(b.clone())),line)?;
@@ -441,6 +484,15 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                         "tuplefst" => a,
                         "tuplesnd" => b,
                         _ => Ty::Tuple(Box::new(b),Box::new(a))
+                    }
+                },
+                "tuple3fst"|"tuple3snd"|"tuple3third" => {
+                    let a=types.fresh(); let b=types.fresh(); let c=types.fresh();
+                    types.unify(actual[0].clone(),Ty::Tuple3(Box::new(a.clone()),Box::new(b.clone()),Box::new(c.clone())),line)?;
+                    match name.as_str() {
+                        "tuple3fst" => a,
+                        "tuple3snd" => b,
+                        _ => c,
                     }
                 },
                 "tomlparse" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
@@ -497,6 +549,22 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
                     elem
                 },
                 "listlen" => { let elem=types.fresh(); types.unify(actual[0].clone(), Ty::List(Box::new(elem)), line)?; Ty::Int },
+                "listhead"|"listlast" => {
+                    let elem=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(elem.clone())),line)?;
+                    Ty::Option(Box::new(elem))
+                },
+                "listenumerate" => {
+                    let elem=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(elem.clone())),line)?;
+                    Ty::List(Box::new(Ty::Tuple(Box::new(Ty::Int),Box::new(elem))))
+                },
+                "listzip" => {
+                    let a=types.fresh(); let b=types.fresh();
+                    types.unify(actual[0].clone(),Ty::List(Box::new(a.clone())),line)?;
+                    types.unify(actual[1].clone(),Ty::List(Box::new(b.clone())),line)?;
+                    Ty::List(Box::new(Ty::Tuple(Box::new(a),Box::new(b))))
+                },
                 "csvparse"|"trycsv"|"b64decode"|"utf8bytes" => { types.unify(actual[0].clone(), Ty::Str, line)?; Ty::Data },
                 "csvwrite"|"b64encode" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Str },
                 "frombytes"|"zpack"|"zunpack" => { types.unify(actual[0].clone(), Ty::Data, line)?; Ty::Data },
@@ -544,48 +612,94 @@ fn check_expr(expr: &Expr, line: usize, env: &HashMap<String, Ty>, functions: &H
     }
 }
 
+// Dependency groups prevent a call to a forward-declared polymorphic function
+// from accidentally fixing its type for all uses.
+fn function_dependencies(expr:&Expr,names:&HashSet<String>,out:&mut HashSet<String>) {
+    if let Expr::Call(name,args)=expr {
+        if names.contains(name) {out.insert(name.clone());}
+        if matches!(name.as_str(),"listmap"|"listfilter"|"listfold"|"map"|"filter"|"fold"|"iterate"|"each"|"spawn") {
+            if let Some(Expr::Str(callback))=args.first() {
+                if names.contains(callback) {out.insert(callback.clone());}
+            }
+        }
+        for arg in args {function_dependencies(arg,names,out);}
+    }
+}
+fn reaches(from:&str,target:&str,graph:&HashMap<String,HashSet<String>>,visited:&mut HashSet<String>)->bool {
+    if from==target {return true;}
+    if !visited.insert(from.to_string()) {return false;}
+    graph.get(from).is_some_and(|deps|deps.iter().any(|dep|reaches(dep,target,graph,visited)))
+}
 fn check(program: Program) -> Result<Checked, CompileError> {
-    let mut types = Types::new();
-    let mut functions = HashMap::<String, Sig>::new();
+    let mut types=Types::new();
+    let mut functions=HashMap::<String,Sig>::new();
+    let names=program.functions.iter().map(|f|f.name.clone()).collect::<Vec<_>>();
     for f in &program.functions {
-        let args = f.args.iter().map(|p| if p == "_" { Ty::Unit } else { types.fresh() }).collect();
-        let ret = types.fresh();
-        functions.insert(f.name.clone(), Sig { args, ret });
+        let args=f.args.iter().map(|p|if p=="_" {Ty::Unit}else{types.fresh()}).collect();
+        functions.insert(f.name.clone(),Sig {args,ret:types.fresh()});
     }
-    for f in &program.functions {
-        let signature = functions.get(&f.name).unwrap().clone();
-        let env = f.args.iter().zip(&signature.args).filter(|(name,_)| name.as_str() != "_").map(|(name, ty)| (name.clone(), ty.clone())).collect();
-        let found = check_expr(&f.expr, f.line, &env, &functions, &mut types)?;
-        types.unify(found, signature.ret, f.line)?;
+    let known=names.iter().cloned().collect::<HashSet<_>>();
+    let graph=program.functions.iter().map(|f|{
+        let mut deps=HashSet::new();
+        function_dependencies(&f.expr,&known,&mut deps);
+        (f.name.clone(),deps)
+    }).collect::<HashMap<_,_>>();
+    let mut remaining=known.clone();
+    let mut groups=Vec::<Vec<String>>::new();
+    for name in &names {
+        if !remaining.contains(name) {continue;}
+        let group=names.iter().filter(|other|{
+            remaining.contains(*other)
+            && reaches(name,other,&graph,&mut HashSet::new())
+            && reaches(other,name,&graph,&mut HashSet::new())
+        }).cloned().collect::<Vec<_>>();
+        for member in &group {remaining.remove(member);}
+        groups.push(group);
     }
-    let mut values = HashMap::<String, Ty>::new();
+    let mut completed=HashSet::<String>::new();
+    while completed.len()<names.len() {
+        let group=groups.iter().find(|group|{
+            group.iter().any(|name|!completed.contains(name))
+            &&group.iter().all(|name|graph[name].iter().all(|dep|
+                group.contains(dep)||completed.contains(dep)))
+        }).ok_or_else(||err(1,"internal error: generic dependency ordering"))?;
+        for name in group {
+            let f=program.functions.iter().find(|f|&f.name==name).unwrap();
+            let sig=functions.get(name).unwrap().clone();
+            let env=f.args.iter().zip(&sig.args).filter(|(p,_)|p.as_str()!="_")
+                .map(|(p,ty)|(p.clone(),ty.clone())).collect();
+            let found=check_expr(&f.expr,f.line,&env,&functions,&mut types)?;
+            types.unify(found,sig.ret,f.line)?;
+        }
+        // Recursive definitions share monomorphic signatures internally.
+        // Outside this group, every call gets a fresh scheme instantiation.
+        for name in group {
+            completed.insert(name.clone());
+            types.generalized.insert(name.clone());
+        }
+    }
+    let mut values=HashMap::<String,Ty>::new();
     for item in &program.items {
         match item {
-            Item::Value { name, expr, line } => {
-                let inferred = check_expr(expr, *line, &values, &functions, &mut types)?;
-                values.insert(name.clone(), inferred);
+            Item::Value {name,expr,line}=>{
+                let ty=check_expr(expr,*line,&values,&functions,&mut types)?;
+                values.insert(name.clone(),ty);
             }
-            Item::Statement { expr, line } => {
-                check_expr(expr, *line, &values, &functions, &mut types)?;
-            }
+            Item::Statement {expr,line}=>{check_expr(expr,*line,&values,&functions,&mut types)?;}
         }
     }
     for f in &program.functions {
-        let sig = functions.get_mut(&f.name).unwrap();
-        for (i, t) in sig.args.iter_mut().enumerate() {
-            *t = types.concrete(t.clone(), f.line, &format!("parameter {} of '{}'", i + 1, f.name))?;
-        }
-        sig.ret = types.concrete(sig.ret.clone(), f.line, &format!("return of '{}'", f.name))?;
+        let sig=functions.get_mut(&f.name).unwrap();
+        for arg in &mut sig.args {*arg=types.resolve(arg.clone());}
+        sig.ret=types.resolve(sig.ret.clone());
     }
     for item in &program.items {
-        if let Item::Value {name, line, ..} = item {
-            let t = values.get_mut(name).unwrap();
-            *t = types.concrete(t.clone(), *line, &format!("value '{name}'"))?;
+        if let Item::Value{name,line,..}=item {
+            let t=values.get_mut(name).unwrap();
+            *t=types.concrete(t.clone(),*line,&format!("value '{name}'"))?;
         }
     }
-    // Rechecking resolved expression types ensures print/str/== operands aren't unspecialized.
-    // All function parameters and top-level values now have concrete types.
-    Ok(Checked { program, function_types: functions, value_types: values })
+    Ok(Checked {program,function_types:functions,value_types:values})
 }
 
 fn safe_id(name: &str) -> String {
@@ -601,7 +715,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
         Expr::Unit => "()".into(),
         Expr::Var(w) => {
             let ty = local.get(w).or_else(|| global.get(w)).expect("checked variable");
-            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Tuple(_,_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
+            if matches!(ty, Ty::Str | Ty::Data | Ty::Cell | Ty::Task | Ty::List(_) | Ty::Map(_) | Ty::Tuple(_,_) | Ty::Tuple3(_,_,_) | Ty::Var(_) | Ty::Option(_) | Ty::Result(_)) { format!("{}.clone()", safe_id(w)) } else { safe_id(w) }
         }
         Expr::Call(name, args) => {
             if matches!(name.as_str(), "listmap"|"listfilter"|"listfold") {
@@ -641,6 +755,7 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
                 "print" => format!("ain_print({})", a[0]),
+                "assert" => format!("{{ assert!({}, \"Ain assertion failed\"); }}", a[0]),
                 "split" => format!("{{ let source={}; let needle={}; if needle.is_empty() {{ source.chars().map(|c|c.to_string()).collect::<Vec<String>>() }} else {{ source.split(&needle).map(|s|s.to_string()).collect::<Vec<String>>() }} }}",a[0],a[1]),
                 "lines" => format!("({}).lines().map(|s|s.to_string()).collect::<Vec<String>>()",a[0]),
                 "strjoin" => format!("({}).join(({}).as_str())",a[0],a[1]),
@@ -649,6 +764,10 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "listdrop" => format!("({}).into_iter().skip(usize::try_from({}).unwrap_or(0)).collect::<Vec<_>>()",a[0],a[1]),
                 "listappend" => format!("{{ let mut list={}; list.extend({}); list }}",a[0],a[1]),
                 "listflatten" => format!("({}).into_iter().flatten().collect::<Vec<_>>()",a[0]),
+                "listzip" => format!("({}).into_iter().zip(({}).into_iter()).collect::<Vec<_>>()",a[0],a[1]),
+                "listhead" => format!("({}).into_iter().next()",a[0]),
+                "listlast" => format!("({}).into_iter().last()",a[0]),
+                "listenumerate" => format!("({}).into_iter().enumerate().map(|(i,v)| (i64::try_from(i).expect(\"too many list elements\"),v)).collect::<Vec<_>>()",a[0]),
                 "sortint"|"sortstr" => format!("{{ let mut list={}; list.sort(); list }}",a[0]),
                 "fslist" => format!("ain_fs_list({})",a[0]),
                 "fsmkdir" => format!("ain_fs_mkdir({})",a[0]),
@@ -657,9 +776,13 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "pathjoin" => format!("ain_path_join({}, {})",a[0],a[1]),
                 "processrun" => format!("ain_process_run({}, {})",a[0],a[1]),
                 "tuple2" => format!("({}, {})",a[0],a[1]),
+                "tuple3" => format!("({}, {}, {})",a[0],a[1],a[2]),
                 "tuplefst" => format!("({}).0",a[0]),
                 "tuplesnd" => format!("({}).1",a[0]),
                 "tupleswap" => format!("{{ let (first,second) = {}; (second,first) }}",a[0]),
+                "tuple3fst" => format!("({}).0",a[0]),
+                "tuple3snd" => format!("({}).1",a[0]),
+                "tuple3third" => format!("({}).2",a[0]),
                 "tomlparse" => format!("ain_tomlparse({})", a[0]),
                 "tomlwrite" => format!("ain_tomlwrite({})", a[0]),
                 "ffi0" => format!("ain_ffi0({}, {})", a[0], a[1]),
@@ -774,6 +897,64 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
     }
 }
 
+#[derive(Clone,Copy,Default,PartialEq,Eq)]
+struct TraitNeed { text: bool, equal: bool }
+impl TraitNeed {
+    fn add(&mut self, other:Self) {
+        self.text|=other.text;self.equal|=other.equal;
+    }
+}
+fn mentions_param(expr:&Expr,param:&str)->bool {
+    match expr {
+        Expr::Var(name)=>name==param,
+        Expr::Call(_,args)=>args.iter().any(|arg|mentions_param(arg,param)),
+        _=>false,
+    }
+}
+fn needed_by_expr(expr:&Expr,param:&str,known:&HashMap<String,Vec<TraitNeed>>)->TraitNeed {
+    let mut need=TraitNeed::default();
+    if let Expr::Call(name,args)=expr {
+        if matches!(name.as_str(),"print"|"str") &&
+            args.iter().any(|arg|mentions_param(arg,param)) {need.text=true;}
+        if matches!(name.as_str(),"=="|"!=") &&
+            args.iter().any(|arg|mentions_param(arg,param)) {need.equal=true;}
+        if let Some(callee)=known.get(name) {
+            for (arg,req) in args.iter().zip(callee) {
+                if mentions_param(arg,param) {need.add(*req);}
+            }
+        }
+        // Quoted callbacks carry generic requirements into list combinators.
+        if matches!(name.as_str(),"listmap"|"listfilter"|"listfold"|"map"|"filter"|"fold"|"iterate"|"each"|"spawn") {
+            if let Some(Expr::Str(callback))=args.first() {
+                if let Some(reqs)=known.get(callback) {
+                    if args.iter().skip(1).any(|arg|mentions_param(arg,param)) {
+                        for req in reqs {need.add(*req);}
+                    }
+                }
+            }
+        }
+        for arg in args {need.add(needed_by_expr(arg,param,known));}
+    }
+    need
+}
+fn required_traits(program:&Program)->HashMap<String,Vec<TraitNeed>> {
+    let mut current=program.functions.iter().map(|f|
+        (f.name.clone(),vec![TraitNeed::default();f.args.len()])
+    ).collect::<HashMap<_,_>>();
+    // Monotone finite fixed point: one bit per trait per function parameter.
+    loop {
+        let previous=current.clone();
+        for f in &program.functions {
+            for (i,param) in f.args.iter().enumerate() {
+                if param!="_" {
+                    current.get_mut(&f.name).unwrap()[i].add(
+                        needed_by_expr(&f.expr,param,&previous));
+                }
+            }
+        }
+        if current==previous {return current;}
+    }
+}
 fn emit(checked: &Checked) -> String {
     let mut out = "// Generated by AIN compiler 0.2.0; edits will be overwritten.\n#![allow(unused_variables, dead_code)]\n\n".to_string();
     // Keep printing/conversion well-defined for all four AIN primitive types.
@@ -784,6 +965,7 @@ fn emit(checked: &Checked) -> String {
     out.push_str("impl AinText for () { fn ain_text(&self) -> String { \"()\".to_string() } }\n");
     out.push_str("impl<T: AinText> AinText for Vec<T> { fn ain_text(&self) -> String { format!(\"[{}]\", self.iter().map(|x| x.ain_text()).collect::<Vec<_>>().join(\",\")) } }\n");
     out.push_str("impl<A:AinText,B:AinText> AinText for (A,B) { fn ain_text(&self) -> String { format!(\"({}, {})\",self.0.ain_text(),self.1.ain_text()) } }\n");
+    out.push_str("impl<A:AinText,B:AinText,C:AinText> AinText for (A,B,C) { fn ain_text(&self) -> String { format!(\"({}, {}, {})\",self.0.ain_text(),self.1.ain_text(),self.2.ain_text()) } }\n");
     out.push_str("impl<T: AinText> AinText for std::collections::BTreeMap<String,T> { fn ain_text(&self) -> String { format!(\"{{{}}}\", self.iter().map(|(k,v)| format!(\"{}:{}\", k, v.ain_text())).collect::<Vec<_>>().join(\",\")) } }\n");
     out.push_str("impl<T: AinText> AinText for Option<T> { fn ain_text(&self) -> String { match self { Some(v) => format!(\"some({})\",v.ain_text()), None => \"none\".into() } } }\n");
     out.push_str("impl<T: AinText> AinText for Result<T,String> { fn ain_text(&self) -> String { match self { Ok(v) => format!(\"ok({})\",v.ain_text()), Err(e) => format!(\"err({})\",e) } } }\n");
@@ -822,15 +1004,34 @@ fn ain_input(_: ()) -> String {
 }
 "#);
     let fn_names: HashSet<String> = checked.program.functions.iter().map(|f| f.name.clone()).collect();
+    let trait_needs=required_traits(&checked.program);
     for f in &checked.program.functions {
         let sig = checked.function_types.get(&f.name).unwrap();
+        let mut free=std::collections::BTreeSet::new();
+        for ty in &sig.args {ty.variables(&mut free);}
+        sig.ret.variables(&mut free);
+        let generic_header=if free.is_empty() {String::new()}else{
+            let specs=free.iter().map(|id|{
+                let mut bounds=vec!["Clone"];
+                let mut traits=TraitNeed::default();
+                for (t,need) in sig.args.iter().zip(&trait_needs[&f.name]) {
+                    let mut vars=std::collections::BTreeSet::new();
+                    t.variables(&mut vars);
+                    if vars.contains(id) {traits.add(*need);}
+                }
+                if traits.text {bounds.push("AinText");}
+                if traits.equal {bounds.push("PartialEq");}
+                format!("G{id}: {}",bounds.join(" + "))
+            }).collect::<Vec<_>>();
+            format!("<{}>",specs.join(", "))
+        };
         let args = f.args.iter().zip(&sig.args).enumerate().map(|(i, (name, ty))| {
             let rust_name = if name == "_" { format!("_unit_{i}") } else { safe_id(name) };
             format!("{}: {}", rust_name, ty.rust())
         }).collect::<Vec<_>>().join(", ");
         let local: HashMap<String, Ty> = f.args.iter().zip(&sig.args).filter(|(name, _)| name.as_str() != "_").map(|(n, t)| (n.clone(), t.clone())).collect();
         let body = rust_expr(&f.expr, &fn_names, &local, &HashMap::new());
-        out.push_str(&format!("fn {}({}) -> {} {{\n    {}\n}}\n\n", safe_id(&f.name), args, sig.ret.rust(), body));
+        out.push_str(&format!("fn {}{}({}) -> {} {{\n    {}\n}}\n\n", safe_id(&f.name), generic_header, args, sig.ret.rust(), body));
     }
     out.push_str("fn main() {\n");
     let mut globals = HashMap::new();
@@ -923,6 +1124,25 @@ pub fn compile(source: &str) -> Result<Compilation, CompileError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn parametric_identity_instantiates_separately() {
+        let s="identity x = x\nprint identity 4\nprint identity \"hello\"\n";
+        let rust=compile(s).unwrap().rust;
+        assert!(rust.contains("fn ain_identity<"));
+        assert!(rust.contains("-> G"));
+    }
+    #[test] fn type_restrictions_still_enforced() {
+        assert!(compile("same x y = + x y\nprint same 1 \"no\"").is_err());
+        assert!(compile("id x = x\nx = id option_none _").is_err());
+    }
+    #[test] fn typed_list_zip_and_safe_access() {
+        assert!(compile("print tuplefst listat listzip listof 1 listof true 0").is_ok());
+        assert!(compile("print option_get listhead listof 3 0").is_ok());
+        assert!(compile("print tuplefst listat listenumerate listof \"x\" 0").is_ok());
+        assert!(compile("print listzip listof 1 listof 2").is_ok());
+        assert!(compile("print listzip listof 1 2").is_err());
+    }
+    #[test] fn assert_requires_boolean() { assert!(compile("assert > 3 2").is_ok()); assert!(compile("assert 1").is_err()); }
+    #[test] fn typed_triples_reject_invalid_projection() { assert!(compile("print tuple3fst tuple3 1 2 true").is_ok()); assert!(compile("print tuple3fst tuple2 1 2").is_err()); }
     #[test] fn prefix_and_inferred_functions() {
         let compiled = compile("add a b = + a b\nsquare x = * x x\nprint add square 3 square 4").unwrap();
         assert!(compiled.rust.contains("fn ain_add(ain_a: i64, ain_b: i64) -> i64"));

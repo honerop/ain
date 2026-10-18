@@ -80,6 +80,7 @@ static V v_str_value(V x) {
  snprintf(buf,sizeof(buf),"%lld",(long long)x.i); return v_str(v_dup_n(buf,strlen(buf)));
 }
 static V v_print(V x) { V s=v_str_value(x); puts(v_s(s)); return v_unit(); }
+static V v_assert(V x) { if (!v_truth(x)) v_fail("assertion failed"); return v_unit(); }
 static V v_add(V a,V b) { int64_t x; if(__builtin_add_overflow(v_n(a),v_n(b),&x)) v_fail("integer overflow"); return v_int(x); }
 static V v_sub(V a,V b) { int64_t x; if(__builtin_sub_overflow(v_n(a),v_n(b),&x)) v_fail("integer overflow"); return v_int(x); }
 static V v_mul(V a,V b) { int64_t x; if(__builtin_mul_overflow(v_n(a),v_n(b),&x)) v_fail("integer overflow"); return v_int(x); }

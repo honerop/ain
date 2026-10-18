@@ -14,7 +14,7 @@ Errors contain a `severity`, `line`, `code`, `message`, and `hint`.
 
 Current diagnostic classes are `E_TYPE`, `E_UNKNOWN_VARIABLE`,
 `E_UNKNOWN_FUNCTION`, `E_INFERENCE`, `E_EXPRESSION`,
-`E_UNTERMINATED`, `E_DUPLICATE`, and `E_COMPILER`.
+`E_UNTERMINATED`, `E_DUPLICATE`, `E_ARITY`, and `E_COMPILER`.
 Classes are broad: the underlying messages remain the authoritative compiler
 diagnostics. Precise column ranges, related locations, and automated code fixes
 are not yet implemented.
@@ -46,3 +46,16 @@ Tests verify default-deny file reading, explicit permission grants, and
 structured diagnostic categories. These are incremental compiler/tooling
 capabilities, not a substitute for static effect typing or deterministic
 machine-verifiable proofs.
+
+## Deterministic runtime assertions
+
+`assert CONDITION` takes a Boolean expression and returns unit on success.
+If false, the program stops with an assertion failure. It is supported by
+both the Rust and LLVM backends, including after optimization.
+
+```text
+assert == + 2 3 5
+```
+
+These are runtime checks, **not proofs**. To verify a property for all inputs,
+use an external verification system until Ain has a sound proof checker.

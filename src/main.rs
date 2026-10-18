@@ -1,5 +1,6 @@
 use ain_compiler::{compile, compile_llvm, dump_air, format_source};
 use std::env;
+mod benchmark;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
@@ -32,6 +33,8 @@ fn diagnostic_class(message: &str) -> (&'static str, &'static str) {
         ("E_UNKNOWN_FUNCTION", "Use a declared function or supported builtin")
     } else if message.contains("cannot infer type") {
         ("E_INFERENCE", "Provide a typed expression or use the value in a typed operation")
+    } else if message.contains("extra tokens after expression") {
+        ("E_ARITY", "Check the number of arguments expected by each prefix expression")
     } else if message.contains("expected expression") {
         ("E_EXPRESSION", "Provide all arguments required by the prefix expression")
     } else if message.contains("unterminated") {
@@ -43,7 +46,7 @@ fn diagnostic_class(message: &str) -> (&'static str, &'static str) {
     }
 }
 fn usage() {
-    eprintln!("AIN compiler 0.3.0\nUsage:\n  ainc check <file.ain>\n  ainc fmt <file.ain> [-o output.ain]\n  ainc fmt-check <file.ain>\n  ainc check-json <file.ain>\n  ainc air <file.ain> [-o file.air]\n  ainc llvm <file.ain> [-o file.ll]\n  ainc build-llvm <file.ain> [-o executable]\n  ainc run-llvm <file.ain>\n  ainc transpile <file.ain> [-o file.rs]\n  ainc build <file.ain> [-o executable]\n  ainc run <file.ain>\n  ainc run-checked <file.ain>  # builtins default-deny unless AIN_PERMISSIONS is set\n  ainc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
+    eprintln!("AIN compiler 0.3.0\nUsage:\n  ainc check <file.ain>\n  ainc fmt <file.ain> [-o output.ain]\n  ainc fmt-check <file.ain>\n  ainc check-json <file.ain>\n  ainc air <file.ain> [-o file.air]\n  ainc llvm <file.ain> [-o file.ll]\n  ainc build-llvm <file.ain> [-o executable]\n  ainc run-llvm <file.ain>\n  ainc transpile <file.ain> [-o file.rs]\n  ainc build <file.ain> [-o executable]\n  ainc run <file.ain>\n  ainc run-checked <file.ain>  # builtins default-deny unless AIN_PERMISSIONS is set\n  ainc bench FILE.ain [--backend rust|llvm|both] [--runs N] [--timeout-ms N] [--json]\n  ainc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
 }
 fn rustc(rust: &Path, binary: &Path) -> Result<(), String> {
     let mut cmd = Command::new("rustc");
@@ -80,6 +83,7 @@ fn work_dir() -> Result<PathBuf, String> {
 }
 fn run() -> Result<(), String> {
     let args: Vec<String> = env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("bench") { return benchmark::run(&args[1..]); }
     if args.len() == 1 && ["--version", "-V", "version"].contains(&args[0].as_str()) {
         println!("ainc 0.3.0"); return Ok(());
     }

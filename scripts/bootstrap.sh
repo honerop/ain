@@ -40,6 +40,8 @@ for file in examples/*.ain; do
   ./build/example > build/example.out
   case "$file" in
     examples/arithmetic.ain) printf '25\n' > build/expected.out ;;
+    examples/generics.ain) printf '42\nhello\ntrue\n' > build/expected.out ;;
+    examples/assertions.ain) printf '42\n' > build/expected.out ;;
     examples/branches.ain) printf '46\n6\n' > build/expected.out ;;
     examples/hello.ain) printf 'I\n' > build/expected.out ;;
     examples/strings.ain) printf 'Hello, AGENT\n6\na_b_c\n' > build/expected.out ;;
