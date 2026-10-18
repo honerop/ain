@@ -18,7 +18,11 @@ import tempfile
 import time
 from typing import Any
 
-from tools import llm_provider
+try:
+    from tools import llm_provider
+except ModuleNotFoundError:
+    # Direct execution: python3 tools/llm_bench.py
+    import llm_provider
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "benchmarks" / "llm" / "tasks.json"
