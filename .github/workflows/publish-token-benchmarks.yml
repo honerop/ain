@@ -39,7 +39,8 @@ jobs:
             tokens benchmarks/tokens/*/* --json > /tmp/token-results.json
       - name: Verify the checked-in results in pull requests
         if: github.event_name == 'pull_request'
-        run: diff -u benchmarks/token-results.json /tmp/token-results.json
+        shell: bash
+        run: diff -u <(jq -S . benchmarks/token-results.json) <(jq -S . /tmp/token-results.json)
       - name: Publish changed results to main
         if: github.event_name != 'pull_request'
         run: |
