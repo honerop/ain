@@ -13,3 +13,11 @@ path = "src/main.rs"
 lto = true
 codegen-units = 1
 strip = true
+
+[features]
+default = []
+# Only tokenizer benchmarks depend on a large vocabulary; regular builds stay dependency-free.
+token-bench = ["dep:tiktoken"]
+
+[dependencies]
+tiktoken = { version = "4.1.2", default-features = false, features = ["vocab-o200k_base"], optional = true }

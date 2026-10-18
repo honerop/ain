@@ -1,0 +1,4 @@
+id x = x
+print id 42
+print id "hello"
+print id true
