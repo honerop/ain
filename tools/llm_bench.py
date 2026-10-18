@@ -97,6 +97,23 @@ def load_tasks(path: Path) -> list[dict[str, Any]]:
     return data
 
 
+# Allow only toolchain configuration into candidate processes, never API secrets.
+# This minimizes accidental credential exposure, but is NOT a sandbox.
+EXEC_ENV_ALLOWLIST = {
+    "PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM",
+    "RUSTUP_HOME", "CARGO_HOME", "RUSTC", "CC", "CXX",
+    "LD_LIBRARY_PATH", "NIX_LD", "NIX_LD_LIBRARY_PATH",
+    "SSL_CERT_FILE", "NIX_SSL_CERT_FILE", "PKG_CONFIG_PATH",
+}
+
+
+def candidate_environment(cwd: Path) -> dict[str, str]:
+    env = {k: v for k, v in os.environ.items() if k in EXEC_ENV_ALLOWLIST}
+    env["HOME"] = str(cwd)
+    env["TMPDIR"] = str(cwd)
+    return env
+
+
 def run_process(
     argv: list[str], *,
     cwd: Path, timeout: float, stdin: str = ""
@@ -113,6 +130,7 @@ def run_process(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=timeout,
+            env=candidate_environment(cwd),
             check=False,
         )
         return {
