@@ -166,6 +166,20 @@ class ProviderTests(unittest.TestCase):
             self.assertEqual(data["summary"]["python"]["input_tokens_known_total"], 34)
             self.assertNotIn("not-in-report", json.dumps(data))
 
+    def test_generated_programs_cannot_read_api_keys_from_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {
+                "OPENAI_API_KEY": "should-never-reach-the-child",
+                "MY_TEST_API_KEY": "also-not-visible",
+            }):
+                result = llm_bench.run_process([
+                    os.sys.executable, "-c",
+                    "import os;print(os.getenv('OPENAI_API_KEY'));print(os.getenv('MY_TEST_API_KEY'))",
+                ], cwd=Path(tmp), timeout=5)
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["stdout"], "None\nNone\n")
+
+
     def test_requires_model_and_key_and_rejects_mixed_responses(self):
         with self.assertRaises(SystemExit):
             llm_bench.parse_args(["--api-responses-dir", "out", "--generate-only"])
