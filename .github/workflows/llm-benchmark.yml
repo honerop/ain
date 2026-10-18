@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - 'tools/llm_bench.py'
+      - 'tools/llm_provider.py'
       - 'tests/test_llm_*.py'
       - 'benchmarks/llm/**'
       - '.github/workflows/llm-benchmark.yml'
