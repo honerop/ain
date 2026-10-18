@@ -1,0 +1,55 @@
+name: Publish token benchmark data
+on:
+  pull_request:
+    paths:
+      - "benchmarks/tokens/**"
+      - "benchmarks/token-results.json"
+      - "src/token_benchmark.rs"
+      - "Cargo.toml"
+      - ".github/workflows/publish-token-benchmarks.yml"
+  push:
+    branches: [main]
+    paths:
+      - "benchmarks/tokens/**"
+      - "src/token_benchmark.rs"
+      - "Cargo.toml"
+      - ".github/workflows/publish-token-benchmarks.yml"
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-ain-token-results
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Generate results with the native tokenizer
+        run: |
+          cargo run --quiet --release --features token-bench -- \
+            tokens benchmarks/tokens/*/* --json > /tmp/token-results.json
+      - name: Verify the checked-in results in pull requests
+        if: github.event_name == 'pull_request'
+        run: diff -u benchmarks/token-results.json /tmp/token-results.json
+      - name: Publish changed results to main
+        if: github.event_name != 'pull_request'
+        run: |
+          cp /tmp/token-results.json benchmarks/token-results.json
+          git add benchmarks/token-results.json
+          if git diff --cached --quiet; then
+            echo "Benchmark results unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: refresh published Ain token benchmarks [skip ci]"
+          git push
