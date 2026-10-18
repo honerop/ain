@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Evaluate externally generated code with real compile/run and held-out cases.
 
-No LLM provider is bundled. Source files are supplied as JSON responses.
+Generate with an OpenAI-compatible API or evaluate supplied JSON responses.
 WARNING: compilation and execution of generated code are NOT sandboxed.
 """
 from __future__ import annotations
@@ -11,13 +11,14 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import statistics
 import subprocess
 import sys
 import tempfile
 import time
 from typing import Any
+
+from tools import llm_provider
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "benchmarks" / "llm" / "tasks.json"
@@ -165,6 +166,52 @@ def load_response(path: Path) -> dict[str, Any]:
         ):
             raise ValueError("usage token values must be nonnegative integers")
     return response
+
+
+def generate_responses(tasks: list[dict[str, Any]], args: argparse.Namespace) -> None:
+    """Call the model for each task/language/attempt and save raw outputs.
+
+    Existing responses from the same configured model are reused to avoid
+    unnecessary API requests and charges. Abort on the first API error.
+    """
+    key = None if args.no_api_key else os.environ.get(args.api_key_env)
+    if key is None and not args.no_api_key:
+        raise llm_provider.ProviderError(
+            f"Missing API credential: set environment variable {args.api_key_env}"
+        )
+    for task in tasks:
+        for language in args.languages:
+            for attempt in range(1, args.attempts + 1):
+                target = args.api_responses_dir / task["id"] / language / f"{attempt}.json"
+                if target.exists():
+                    existing = load_response(target)
+                    if (existing.get("requested_model") != args.model or
+                            existing.get("provider") != "openai-compatible"):
+                        raise llm_provider.ProviderError(
+                            f"{target}: response belongs to another model or source; "
+                            "choose a separate response directory"
+                        )
+                    print(f"Reused {task['id']}/{language}/{attempt}")
+                    continue
+                completion = llm_provider.generate(
+                    prompt=prompt_for(task, language),
+                    model=args.model, base_url=args.api_base_url,
+                    api_key=key, timeout=args.api_timeout,
+                    retries=args.api_retries, temperature=args.temperature,
+                    max_output_tokens=args.max_output_tokens,
+                    max_tokens_field=args.max_tokens_field,
+                    allow_insecure_http=args.allow_insecure_http,
+                )
+                completion["requested_model"] = args.model
+                target.parent.mkdir(parents=True, exist_ok=True)
+                staged = target.with_suffix(".json.tmp")
+                try:
+                    staged.write_text(json.dumps(completion, indent=2, ensure_ascii=False) + "\n",
+                                      encoding="utf-8")
+                    os.replace(staged, target)
+                finally:
+                    staged.unlink(missing_ok=True)
+                print(f"Generated {task['id']}/{language}/{attempt}")
 
 
 def evaluate(
