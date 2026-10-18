@@ -31,8 +31,11 @@ a subprocess **without invoking a shell**. The return value is a recoverable
 Data record with `ok`, `value`, `error`; `value` contains `code`,
 `stdout`, and `stderr`.
 
-The process has a 10-second timeout, accepts at most 128 arguments, and
-limits stdout/stderr to 1 MiB each. Binary output is rejected as a recoverable
+The process has a 10-second timeout by default. For long-running jobs such as
+video encoding, set `AIN_PROCESS_TIMEOUT_MS` to a positive timeout in
+milliseconds (maximum 1,800,000, or 30 minutes). Invalid values fall back to
+10 seconds. The builtin accepts at most 128 arguments and limits
+stdout/stderr to 1 MiB each. Binary output is rejected as a recoverable
 error. A nonzero exit status is returned under `value.code`, not treated as a
 transport failure.
 
