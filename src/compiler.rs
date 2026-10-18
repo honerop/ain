@@ -140,7 +140,27 @@ enum Item { Value { name: String, expr: Expr, line: usize }, Statement { expr: E
 #[derive(Clone, Debug)]
 struct Program { functions: Vec<Function>, items: Vec<Item> }
 
+// Aliases only change surface syntax: the checked AST always uses full builtin names.
+// Keeping canonical names downstream avoids duplicating type rules and backends.
+fn canonical_builtin(name: &str) -> &str {
+    match name {
+        "lo" => "listof",
+        "lp" => "listpush",
+        "ln" => "listlen",
+        "lm" => "listmap",
+        "lf" => "listfilter",
+        "ld" => "listfold",
+        "lh" => "listhead",
+        "lt" => "listlast",
+        "lz" => "listzip",
+        _ => name,
+    }
+}
+fn callback_builtin(name: &str) -> bool {
+    matches!(name, "listmap"|"listfilter"|"listfold"|"map"|"filter"|"fold"|"iterate"|"each"|"spawn")
+}
 fn builtin_arity(name: &str) -> Option<usize> {
+    let name = canonical_builtin(name);
     Some(match name {
         "+"|"-"|"*"|"/"|"%"|"=="|"!="|"<"|"<="|">"|">="|"and"|"or"|"min"|"max"|"pow"|"concat"|"contains"|"starts"|"ends"|"before"|"after" => 2,
         "if"|"replace"|"clamp" => 3,
@@ -166,9 +186,20 @@ impl ExpressionParser<'_> {
                 if w == "_" { return Ok(Expr::Unit); }
                 if let Ok(n) = w.parse::<i64>() { return Ok(Expr::Int(n)); }
                 if let Some(arity) = self.arities.get(&w).copied().or_else(|| builtin_arity(&w)) {
+                    let canonical = canonical_builtin(&w);
                     let mut arguments = Vec::with_capacity(arity);
-                    for _ in 0..arity { arguments.push(self.expression()?); }
-                    return Ok(Expr::Call(w, arguments));
+                    // A callback identifier is a name, not a call with arguments.
+                    // Bare callback names save quote tokens; quoted names still work.
+                    if callback_builtin(canonical) {
+                        if let Some(Token::Word(callback)) = self.tokens.get(self.at) {
+                            if valid_name(callback) && !is_reserved(callback) {
+                                arguments.push(Expr::Str(callback.clone()));
+                                self.at += 1;
+                            }
+                        }
+                    }
+                    while arguments.len() < arity { arguments.push(self.expression()?); }
+                    return Ok(Expr::Call(canonical.to_string(), arguments));
                 }
                 if !valid_name(&w) { return Err(err(self.line, format!("invalid identifier or literal '{w}'"))); }
                 Ok(Expr::Var(w))
@@ -1124,6 +1155,17 @@ pub fn compile(source: &str) -> Result<Compilation, CompileError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn compact_list_builtins_desugar_to_canonical_calls() {
+        let full="inc x = + x 1\nxs = listpush listpush listof 1 2 3\nprint listlen listmap \"inc\" xs\n";
+        let compact="inc x = + x 1\nxs = lp lp lo 1 2 3\nprint ln lm inc xs\n";
+        assert_eq!(compile(full).unwrap().rust,compile(compact).unwrap().rust);
+    }
+    #[test] fn bare_callbacks_are_checked_as_function_names() {
+        assert!(compile("inc x = + x 1\nprint lm inc lo 1").is_ok());
+        assert!(compile("print lm missing lo 1").is_err());
+        assert!(compile("inc x = + x 1\nprint lm inc lo \"abc\"").is_err());
+        assert!(compile("lo x = x\nprint lo 1").is_err());
+    }
     #[test] fn parametric_identity_instantiates_separately() {
         let s="identity x = x\nprint identity 4\nprint identity \"hello\"\n";
         let rust=compile(s).unwrap().rust;
