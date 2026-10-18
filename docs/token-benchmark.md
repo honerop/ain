@@ -54,3 +54,18 @@ They also do not demonstrate total model-token savings on generated programs.
 The numbers above are copied from a successful CI invocation of
 `ainc tokens --json`; for future code or tokenizer changes, rerun the
 benchmark rather than trusting historical totals.
+
+## Published machine-readable snapshot
+
+The current o200k_base benchmark results are also published at
+[`benchmarks/token-results.json`](../benchmarks/token-results.json).
+The separate **Publish token benchmark data** workflow re-runs the native
+Rust tokenizer whenever the corpus or tokenizer implementation changes,
+and runs a weekly integrity check. It commits to `main` only if values changed.
+Pull requests touching the benchmark data verify that the checked-in JSON
+matches the code-generated output.
+
+Other sites, including [honerop/personal](https://github.com/honerop/personal),
+can fetch the public JSON from `main` and cache it. This is a published
+snapshot that refreshes after source changes, **not real-time AI model
+generation performance**, and it does not include model API token usage.
