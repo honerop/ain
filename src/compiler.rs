@@ -30,6 +30,11 @@ fn lex(line: &str, lineno: usize) -> Result<Vec<Token>, CompileError> {
     while let Some(&ch) = chars.peek() {
         if ch.is_whitespace() { chars.next(); continue; }
         if ch == '#' { break; }
+        if ch == '[' || ch == ']' {
+            result.push(Token::Word(ch.to_string()));
+            chars.next();
+            continue;
+        }
         if ch == '"' {
             chars.next();
             let mut value = String::new();
@@ -54,7 +59,7 @@ fn lex(line: &str, lineno: usize) -> Result<Vec<Token>, CompileError> {
         } else {
             let mut word = String::new();
             while let Some(&c) = chars.peek() {
-                if c.is_whitespace() || c == '#' || c == '"' { break; }
+                if c.is_whitespace() || c == '#' || c == '"' || c == '[' || c == ']' { break; }
                 word.push(c); chars.next();
             }
             if chars.peek() == Some(&'"') && !word.is_empty() {
@@ -181,6 +186,30 @@ impl ExpressionParser<'_> {
         match token {
             Token::String(s) => Ok(Expr::Str(s)),
             Token::Word(w) => {
+                if w == "[" {
+                    // A non-empty list literal lowers to the existing typed
+                    // listof/listpush operations. No new runtime operation.
+                    let mut values = Vec::new();
+                    loop {
+                        match self.tokens.get(self.at) {
+                            Some(Token::Word(end)) if end == "]" => {
+                                self.at += 1;
+                                break;
+                            }
+                            None => return Err(err(self.line, "unclosed list literal: expected ']'")),
+                            _ => values.push(self.expression()?),
+                        }
+                    }
+                    let mut values = values.into_iter();
+                    let first = values.next().ok_or_else(||
+                        err(self.line, "empty list literal has no inferable element type"))?;
+                    let mut list = Expr::Call("listof".into(), vec![first]);
+                    for value in values {
+                        list = Expr::Call("listpush".into(), vec![list, value]);
+                    }
+                    return Ok(list);
+                }
+                if w == "]" {return Err(err(self.line, "unexpected ']' outside list literal"));}
                 if w == "true" { return Ok(Expr::Bool(true)); }
                 if w == "false" { return Ok(Expr::Bool(false)); }
                 if w == "_" { return Ok(Expr::Unit); }
@@ -1155,6 +1184,17 @@ pub fn compile(source: &str) -> Result<Compilation, CompileError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn nonempty_list_literals_are_typed_and_nested() {
+        let canonical="print listlen listpush listpush listof 1 2 3";
+        let literal="print listlen [1 2 3]";
+        assert_eq!(compile(canonical).unwrap().rust,compile(literal).unwrap().rust);
+        assert!(compile("print listat [listof 1 listof 2] 0").is_ok());
+        assert!(compile("print [1 true]").is_err());
+        assert!(compile("print []").is_err());
+        assert!(compile("print [1 2").is_err());
+        assert!(compile("print 2]").is_err());
+        assert!(compile("print [1 2]]").is_err());
+    }
     #[test] fn compact_list_builtins_desugar_to_canonical_calls() {
         let full="inc x = + x 1\nxs = listpush listpush listof 1 2 3\nprint listlen listmap \"inc\" xs\n";
         let compact="inc x = + x 1\nxs = lp lp lo 1 2 3\nprint ln lm inc xs\n";
