@@ -1,0 +1,2 @@
+greet name = concat "Hello, " upper name
+print greet "world"

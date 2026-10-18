@@ -14,6 +14,10 @@ jobs:
         run: cargo test
       - name: Native benchmark smoke test
         run: cargo run -- bench examples/arithmetic.ain --backend both --runs 1 --json
+      - name: Native source token benchmark (o200k_base)
+        run: |
+          cargo test --features token-bench
+          cargo run --features token-bench -- tokens benchmarks/tokens/*/* --json
       - name: Rust-first three-stage bootstrap
         run: ./scripts/bootstrap.sh
       - name: Independent reference bootstrap
