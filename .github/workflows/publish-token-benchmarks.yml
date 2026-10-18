@@ -40,7 +40,7 @@ jobs:
       - name: Verify the checked-in results in pull requests
         if: github.event_name == 'pull_request'
         shell: bash
-        run: diff -u <(jq -S . benchmarks/token-results.json) <(jq -S . /tmp/token-results.json)
+        run: jq -e --slurpfile actual /tmp/token-results.json '. == $actual[0]' benchmarks/token-results.json > /dev/null
       - name: Publish changed results to main
         if: github.event_name != 'pull_request'
         run: |
