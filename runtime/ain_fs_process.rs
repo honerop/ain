@@ -78,14 +78,21 @@ fn ain_process_run(program: String, argv: AinData) -> AinData {
             .stdout(std::process::Stdio::from(output_file))
             .stderr(std::process::Stdio::from(error_file))
             .spawn().map_err(|e| format!("Could not start process: {e}"))?;
-        let until = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        // Keep short-running calls bounded by default, but allow explicit longer
+        // operations such as offline video encoding from Ain applications.
+        let timeout_ms = std::env::var("AIN_PROCESS_TIMEOUT_MS").ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .filter(|ms| (1..=1_800_000).contains(ms))
+            .unwrap_or(10_000);
+        let until = std::time::Instant::now()
+            + std::time::Duration::from_millis(timeout_ms);
         let status = loop {
             match child.try_wait().map_err(|e| e.to_string())? {
                 Some(status) => break status,
                 None if std::time::Instant::now() >= until => {
                     child.kill().map_err(|e| e.to_string())?;
                     let _ = child.wait();
-                    return Err("Process timed out after 10 seconds".into());
+                    return Err(format!("Process timed out after {timeout_ms} milliseconds"));
                 }
                 None => std::thread::sleep(std::time::Duration::from_millis(10))
             }
