@@ -27,16 +27,14 @@ The long-term goal is a **large, convenient standard library** with many common 
 
 **Current reality:** AIN is still pre-alpha. Its built-in operations are limited, and many capabilities described here are **goals, not implemented features**.
 
-## Real LLM code evaluation (no model provider configured)
+## Real LLM code evaluation (OpenAI-compatible API)
 
-A provider-neutral harness can export the same tasks as prompts for Ain, Python,
-Rust and TypeScript, then compile and run supplied LLM-generated responses
-against multiple validation cases. It reports success, compiler errors, timings,
-and **only actual usage counts supplied with the responses**. No provider is
-connected, so no LLM generation benchmark scores are claimed yet.
-
-See [real LLM benchmark instructions](docs/llm-benchmark.md).
-Do not execute untrusted generated code outside proper OS-level isolation.
+`tools/llm_bench.py` can generate source with any OpenAI-compatible Chat Completions
+API, or evaluate manually supplied responses. Set a base URL, model ID and an API
+key environment variable; no OpenCode or third-party Python SDK is required.
+It compares Ain, Python, Rust and TypeScript using real compile/run tests and
+provider-reported tokens. See [LLM benchmark setup](docs/llm-benchmark.md).
+Generated source must be executed in a properly isolated environment.
 
 ## Functional-first programming foundation
 
