@@ -1,0 +1,32 @@
+name: LLM benchmark harness
+
+on:
+  push:
+    paths:
+      - 'tools/llm_bench.py'
+      - 'tests/test_llm_bench.py'
+      - 'benchmarks/llm/**'
+      - '.github/workflows/llm-benchmark.yml'
+  pull_request:
+    paths:
+      - 'tools/llm_bench.py'
+      - 'tests/test_llm_bench.py'
+      - 'benchmarks/llm/**'
+      - '.github/workflows/llm-benchmark.yml'
+  workflow_dispatch:
+
+jobs:
+  offline-harness-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test offline LLM evaluation harness
+        run: python3 -m unittest discover -s tests -p 'test_llm_bench.py' -v
+      - name: Verify prompt export with no model provider
+        run: |
+          python3 tools/llm_bench.py --export-prompts /tmp/ain-llm-prompts
+          test -s /tmp/ain-llm-prompts/sum-two/ain/prompt.txt
