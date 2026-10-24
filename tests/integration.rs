@@ -395,7 +395,7 @@ print astext field text "value"
 invalid = zunpack utf8bytes "invalid"
 print asbool field invalid "ok"
 "#;
-    assert_eq!(execute(source), "true\nAin data compresses into bytes\nfalse\n");
+    assert_eq!(execute(source), "true\nBabel data compresses into bytes\nfalse\n");
 }
 #[test]
 fn serialization_type_checks() {
@@ -750,7 +750,7 @@ print asbool field call "ok"
 fn native_toml_nested_tables_and_arrays_roundtrip() {
     let toml = "title = \"Babel #1\"\nactive = true\nnums = [1, 2, 3]\n\n[server]\nport = 8080\nhost = \"localhost\"\n\n[server.auth]\nenabled = false\n";
     let source = format!("doc = tomlparse {:?}\nprint asbool field doc \"ok\"\nvalue = field doc \"value\"\nprint astext field value \"title\"\nprint asint field field value \"server\" \"port\"\nprint encode field value \"nums\"\nencoded = tomlwrite value\nprint asbool field encoded \"ok\"\nprint asbool field tomlparse astext field encoded \"value\" \"ok\"\n",toml);
-    assert_eq!(execute(&source), "true\nAin #1\n8080\n[1,2,3]\ntrue\ntrue\n");
+    assert_eq!(execute(&source), "true\nBabel #1\n8080\n[1,2,3]\ntrue\ntrue\n");
 }
 #[test]
 fn native_toml_duplicate_and_malformed_values_are_recoverable() {
