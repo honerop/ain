@@ -1,4 +1,4 @@
-// zlib compression for Ain byte lists. Linked only when zpack/zunpack is used.
+// zlib compression for Babel byte lists. Linked only when zpack/zunpack is used.
 use std::ffi::c_ulong;
 #[link(name="z")]
 unsafe extern "C" {
@@ -8,8 +8,8 @@ unsafe extern "C" {
     fn uncompress(destination: *mut u8, dest_len: *mut c_ulong,
         source: *const u8, source_len: c_ulong) -> i32;
 }
-fn ain_zpack(value: AinData) -> AinData {
-    let bytes = ain_bytes_checked(value).unwrap_or_else(|e| panic!("zpack: {e}"));
+fn babel_zpack(value: BabelData) -> BabelData {
+    let bytes = babel_bytes_checked(value).unwrap_or_else(|e| panic!("zpack: {e}"));
     let mut length = unsafe { compressBound(bytes.len() as c_ulong) };
     let mut result = vec![0u8; length as usize];
     let status = unsafe { compress2(result.as_mut_ptr(), &mut length,
@@ -18,11 +18,11 @@ fn ain_zpack(value: AinData) -> AinData {
     result.truncate(length as usize);
     let mut header = (bytes.len() as u64).to_be_bytes().to_vec();
     header.extend(result);
-    ain_bytes_data(header)
+    babel_bytes_data(header)
 }
-fn ain_zunpack(value: AinData) -> AinData {
+fn babel_zunpack(value: BabelData) -> BabelData {
     let result: Result<Vec<u8>, String> = (|| {
-        let input = ain_bytes_checked(value)?;
+        let input = babel_bytes_checked(value)?;
         if input.len() < 8 { return Err("Compressed input is too short".into()); }
         let mut size = [0u8; 8];
         size.copy_from_slice(&input[..8]);
@@ -37,7 +37,7 @@ fn ain_zunpack(value: AinData) -> AinData {
         Ok(output)
     })();
     match result {
-        Ok(bytes) => ain_result(true, ain_bytes_data(bytes), ""),
-        Err(e) => ain_result(false, AinData::Null, &e)
+        Ok(bytes) => babel_result(true, babel_bytes_data(bytes), ""),
+        Err(e) => babel_result(false, BabelData::Null, &e)
     }
 }

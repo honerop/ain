@@ -1,18 +1,18 @@
-# Deterministic Ain source formatting
+# Deterministic Babel source formatting
 
-Ain is written exclusively by AI-generated source, so stable formatting
+Babel is written exclusively by AI-generated source, so stable formatting
 reduces noisy rewrites and makes code reviews, cache keys, and generated
 test fixtures easier to compare.
 
 Two CLI commands are supported:
 
 ```sh
-ainc fmt main.ain                    # stdout, no in-place mutation
-ainc fmt main.ain -o formatted.ain  # write formatted output
-ainc fmt-check formatted.ain         # fails with nonzero exit code if unformatted
+babelc fmt main.babel                    # stdout, no in-place mutation
+babelc fmt main.babel -o formatted.babel  # write formatted output
+babelc fmt-check formatted.babel         # fails with nonzero exit code if unformatted
 ```
 
-The parser validates source before formatting, so invalid Ain expressions
+The parser validates source before formatting, so invalid Babel expressions
 are rejected rather than silently reformatted. Every non-comment source
 line is normalized to one space between lexical tokens and no leading or
 trailing spaces. The formatter preserves the original order of functions
@@ -20,7 +20,7 @@ and statements, all comments (including inline comments), blank lines,
 and the meaning of escaped string literals, and uses Unix LF line endings.
 
 The formatter is **idempotent**: `fmt(fmt(source)) == fmt(source)`.
-Whitespace between tokens does not affect Ain's fixed-arity prefix parsing.
+Whitespace between tokens does not affect Babel's fixed-arity prefix parsing.
 It does not reorder functions or records, rewrite expressions, remove comments
 or alter runtime behavior. Format checking is suitable for CI.
 

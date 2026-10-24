@@ -1,6 +1,6 @@
-# C ABI FFI in Ain
+# C ABI FFI in Babel
 
-Ain has an experimental **Linux-native C ABI interoperability foundation**
+Babel has an experimental **Linux-native C ABI interoperability foundation**
 limited to functions using signed 64-bit integers. In addition to the Rust
 native backend, a system compiler and dynamic linker are required.
 
@@ -18,13 +18,13 @@ print asint field value "value"
 
 The generated code uses `dlopen`, `dlsym`, and `dlclose`. Library load and
 symbol resolution errors are recoverable. The builtin requires the `ffi`
-permission when `AIN_RESTRICTED=1`. FFI dependencies are linked only in
+permission when `BABEL_RESTRICTED=1`. FFI dependencies are linked only in
 generated programs that invoke FFI.
 
 **Important safety limitation:** Native libraries are arbitrary native code,
 and C symbol types cannot be verified through `dlsym`. Passing a function
 with the wrong signature invokes undefined behavior and can crash the
-process. The Ain builtin permission check does **not** provide OS process
+process. The Babel builtin permission check does **not** provide OS process
 isolation. Use only trusted C libraries and symbols whose signatures are
 known precisely, or run the program inside a real sandbox.
 
@@ -33,5 +33,5 @@ arguments, callbacks, variadic functions, ownership conventions and Windows
 DLLs are not supported. All are tracked as future work.
 
 End-to-end tests create a C shared library with 0-, 1- and 2-argument
-functions, compile an Ain caller, verify actual results, and check missing
+functions, compile an Babel caller, verify actual results, and check missing
 symbol/library and argument type errors.

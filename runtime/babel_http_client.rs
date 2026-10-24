@@ -1,9 +1,9 @@
 // Structured HTTP/1.1-friendly client using curl, with status and headers.
-// Returns Ain's recoverable Data result; no shell command invocation.
-fn ain_http_request_data(method: String, url: String, options: AinData) -> AinData {
-    let result = (|| -> Result<AinData, String> {
-        if !ain_permission_allowed("network") {
-            return Err("Ain capability denied: network".into());
+// Returns Babel's recoverable Data result; no shell command invocation.
+fn babel_http_request_data(method: String, url: String, options: BabelData) -> BabelData {
+    let result = (|| -> Result<BabelData, String> {
+        if !babel_permission_allowed("network") {
+            return Err("Babel capability denied: network".into());
         }
         if !matches!(method.as_str(), "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD") {
             return Err("Unsupported HTTP method".into());
@@ -12,7 +12,7 @@ fn ain_http_request_data(method: String, url: String, options: AinData) -> AinDa
             || url.bytes().any(|b| b.is_ascii_control()) {
             return Err("Invalid HTTP(S) URL".into());
         }
-        let AinData::Object(fields) = options else {
+        let BabelData::Object(fields) = options else {
             return Err("HTTP options must be a Data record".into());
         };
         for name in fields.keys() {
@@ -22,7 +22,7 @@ fn ain_http_request_data(method: String, url: String, options: AinData) -> AinDa
         }
         let timeout = match fields.get("timeout") {
             None => 30u64,
-            Some(AinData::Number(s)) => {
+            Some(BabelData::Number(s)) => {
                 let n = s.parse::<u64>().map_err(|_| "Timeout must be an integer")?;
                 if n == 0 || n > 60 { return Err("Timeout must be between 1 and 60 seconds".into()); }
                 n
@@ -31,25 +31,25 @@ fn ain_http_request_data(method: String, url: String, options: AinData) -> AinDa
         };
         let redirects = match fields.get("redirects") {
             None => false,
-            Some(AinData::Bool(flag)) => *flag,
+            Some(BabelData::Bool(flag)) => *flag,
             _ => return Err("redirects must be a Boolean".into()),
         };
         let body = match fields.get("body") {
             None => String::new(),
-            Some(AinData::Text(s)) if s.len() <= 4 * 1024 * 1024 => s.clone(),
-            Some(AinData::Text(_)) => return Err("HTTP request body exceeds 4 MiB".into()),
+            Some(BabelData::Text(s)) if s.len() <= 4 * 1024 * 1024 => s.clone(),
+            Some(BabelData::Text(_)) => return Err("HTTP request body exceeds 4 MiB".into()),
             _ => return Err("HTTP body must be text".into()),
         };
         let mut headers = Vec::new();
         if let Some(v) = fields.get("headers") {
-            let AinData::Object(h) = v else { return Err("headers must be a Data record".into()); };
+            let BabelData::Object(h) = v else { return Err("headers must be a Data record".into()); };
             if h.len() > 64 { return Err("Too many HTTP headers".into()); }
             for (name, value) in h {
                 if name.is_empty() || name.len() > 128 || !name.bytes().all(|b|
                     b.is_ascii_alphanumeric() || b == b'-') {
                     return Err("Unsafe HTTP header name".into());
                 }
-                let AinData::Text(value) = value else { return Err("HTTP header value must be text".into()); };
+                let BabelData::Text(value) = value else { return Err("HTTP header value must be text".into()); };
                 if value.len() > 8192 || value.chars().any(|c| c == '\r' || c == '\n' || c == '\0') {
                     return Err("Unsafe HTTP header value".into());
                 }
@@ -57,7 +57,7 @@ fn ain_http_request_data(method: String, url: String, options: AinData) -> AinDa
             }
         }
         // Explicit files avoid ambiguity from binary responses containing status delimiters.
-        let prefix = std::env::temp_dir().join(format!("ain-http-{}-{}",
+        let prefix = std::env::temp_dir().join(format!("babel-http-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos()));
@@ -113,22 +113,22 @@ fn ain_http_request_data(method: String, url: String, options: AinData) -> AinDa
                 let key = key.to_ascii_lowercase();
                 if key.is_empty() { continue; }
                 let value = value.trim().to_string();
-                current.entry(key).and_modify(|v: &mut AinData| {
-                    if let AinData::Text(old) = v {
+                current.entry(key).and_modify(|v: &mut BabelData| {
+                    if let BabelData::Text(old) = v {
                         old.push_str(", ");
                         old.push_str(&value);
                     }
-                }).or_insert(AinData::Text(value));
+                }).or_insert(BabelData::Text(value));
             }
         }
         let mut data = std::collections::BTreeMap::new();
-        data.insert("status".into(), AinData::Number(status.to_string()));
-        data.insert("headers".into(), AinData::Object(current));
-        data.insert("body".into(), AinData::Text(body));
-        Ok(AinData::Object(data))
+        data.insert("status".into(), BabelData::Number(status.to_string()));
+        data.insert("headers".into(), BabelData::Object(current));
+        data.insert("body".into(), BabelData::Text(body));
+        Ok(BabelData::Object(data))
     })();
     match result {
-        Ok(v) => ain_result(true, v, ""),
-        Err(e) => ain_result(false, AinData::Null, &e),
+        Ok(v) => babel_result(true, v, ""),
+        Err(e) => babel_result(false, BabelData::Null, &e),
     }
 }

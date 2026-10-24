@@ -2,9 +2,9 @@
 
 ## Project status
 
-AIN is **pre-alpha research software** and does not provide a security sandbox. **No stable, security-supported releases are available.**
+BABEL is **pre-alpha research software** and does not provide a security sandbox. **No stable, security-supported releases are available.**
 
-Generated code is native code. Do not compile or run untrusted AIN source in an unrestricted environment. The self-hosted C compiler and temporary-string runtime are experimental.
+Generated code is native code. Do not compile or run untrusted BABEL source in an unrestricted environment. The self-hosted C compiler and temporary-string runtime are experimental.
 
 ## Reporting vulnerabilities
 

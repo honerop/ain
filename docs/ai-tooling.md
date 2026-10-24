@@ -1,11 +1,11 @@
 # Machine-friendly diagnostics and checked execution
 
-Ain is designed exclusively for AI-authored source code, so tooling should
+Babel is designed exclusively for AI-authored source code, so tooling should
 support automated compile/repair loops.
 
 ## Compiler diagnostics
 
-`ainc check-json FILE.ain` returns a stable structured JSON object.
+`babelc check-json FILE.babel` returns a stable structured JSON object.
 Errors contain a `severity`, `line`, `code`, `message`, and `hint`.
 
 ```json
@@ -21,19 +21,19 @@ are not yet implemented.
 
 ## Default-deny builtin execution
 
-`ainc run-checked FILE.ain` compiles and runs a program with Ain builtin
-effects restricted. With no `AIN_PERMISSIONS`, builtins for filesystem
+`babelc run-checked FILE.babel` compiles and runs a program with Babel builtin
+effects restricted. With no `BABEL_PERMISSIONS`, builtins for filesystem
 access, environment access, processes, network, browser, AI providers and
 desktop GUI are denied.
 
 Grant only the capabilities needed by the generated program:
 
 ```sh
-AIN_PERMISSIONS=read,network ainc run-checked app.ain
+BABEL_PERMISSIONS=read,network babelc run-checked app.babel
 ```
 
-`ainc run` remains the backward-compatible unguarded mode.
-`run-checked` sets `AIN_RESTRICTED=1` only for the executed program, not
+`babelc run` remains the backward-compatible unguarded mode.
+`run-checked` sets `BABEL_RESTRICTED=1` only for the executed program, not
 for the compiler.
 
 **Critical limitation:** this is builtin **permission checking**, not an
@@ -58,4 +58,4 @@ assert == + 2 3 5
 ```
 
 These are runtime checks, **not proofs**. To verify a property for all inputs,
-use an external verification system until Ain has a sound proof checker.
+use an external verification system until Babel has a sound proof checker.

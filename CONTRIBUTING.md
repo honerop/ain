@@ -1,19 +1,19 @@
-# Contributing to AIN
+# Contributing to BABEL
 
-Thanks for helping improve AIN. It is a pre-alpha compiler experiment: small, well-tested contributions are more useful than broad API rewrites.
+Thanks for helping improve BABEL. It is a pre-alpha compiler experiment: small, well-tested contributions are more useful than broad API rewrites.
 
 ## Before opening an issue
 
 - Check whether the problem occurs on the current `main` branch.
 - Include your operating system, toolchain versions and the selected backend.
-- Reduce compiler bugs to a minimal `.ain` reproduction.
+- Reduce compiler bugs to a minimal `.babel` reproduction.
 - Avoid publishing tokens, credentials, private data, or potentially exploitable details in an issue. Follow [SECURITY.md](SECURITY.md) for vulnerabilities.
 
 ## Development setup
 
 ```sh
-git clone https://github.com/honerop/ain.git
-cd ain
+git clone https://github.com/honerop/babel.git
+cd babel
 nix develop             # optional, on systems with Nix
 cargo test
 ```
@@ -21,8 +21,8 @@ cargo test
 For a supported program, compare the backends:
 
 ```sh
-cargo run -- run examples/arithmetic.ain
-cargo run -- run-llvm examples/arithmetic.ain
+cargo run -- run examples/arithmetic.babel
+cargo run -- run-llvm examples/arithmetic.babel
 ```
 
 To validate the C self-hosting experiment:

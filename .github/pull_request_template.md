@@ -9,7 +9,7 @@
 ## Verification
 
 - [ ] `cargo test`
-- [ ] Relevant AIN examples compiled and executed
+- [ ] Relevant BABEL examples compiled and executed
 - [ ] Bootstrap checked, if touched
 - [ ] Other / unable to run (explain below)
 
@@ -19,7 +19,7 @@
 
 ## Backend compatibility
 
-<!-- Rust stage zero / AIR + LLVM / AIN -> C bootstrap -->
+<!-- Rust stage zero / AIR + LLVM / BABEL -> C bootstrap -->
 
 ## Risks and limitations
 

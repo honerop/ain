@@ -96,8 +96,8 @@
         "stdout": "hello\n"
       },
       {
-        "stdin": "Ain\n",
-        "stdout": "ain\n"
+        "stdin": "Babel\n",
+        "stdout": "babel\n"
       },
       {
         "stdin": "  Straße  \n",

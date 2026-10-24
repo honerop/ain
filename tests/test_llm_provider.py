@@ -187,14 +187,14 @@ class ProviderTests(unittest.TestCase):
             home = Path(tmp)
             taskfile = home / "tasks.json"
             taskfile.write_text(json.dumps([TASK]))
-            args = ["--tasks", str(taskfile), "--languages", "ain",
+            args = ["--tasks", str(taskfile), "--languages", "babel",
                     "--api-responses-dir", str(home / "out"),
                     "--model", "demo", "--api-key-env", "EMPTY_KEY_TEST",
                     "--generate-only"]
             with mock.patch.dict(os.environ, {}, clear=True):
                 with self.assertRaisesRegex(llm_provider.ProviderError, "Missing API credential"):
                     llm_bench.main(args)
-            target = home / "out" / "sum-two" / "ain"
+            target = home / "out" / "sum-two" / "babel"
             target.mkdir(parents=True)
             (target / "1.json").write_text(json.dumps({
                 "source": "print 1", "provider": "openai-compatible",

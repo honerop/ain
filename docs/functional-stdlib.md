@@ -1,6 +1,6 @@
 # Functional standard-library operations
 
-Ain remains functional-first, but not purely functional. AI-generated code can
+Babel remains functional-first, but not purely functional. AI-generated code can
 use built-in operations for common transformations without loops or imports.
 
 ## Strings and text

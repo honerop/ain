@@ -27,7 +27,7 @@ except ModuleNotFoundError:
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "benchmarks" / "llm" / "tasks.json"
 LANGUAGES = {
-    "ain": ("main.ain", "Ain"),
+    "babel": ("main.babel", "Babel"),
     "python": ("main.py", "Python 3"),
     "rust": ("main.rs", "Rust 2021"),
     "typescript": ("main.ts", "TypeScript"),
@@ -35,7 +35,7 @@ LANGUAGES = {
 SOURCE_LIMIT = 100_000
 OUTPUT_LIMIT = 8_000
 
-AIN_PRIMER = """Ain syntax: one statement per line, prefix calls with fixed arity.
+BABEL_PRIMER = """Babel syntax: one statement per line, prefix calls with fixed arity.
 Function: add a b = + a b ; call: add 2 3
 Variables: x = 3 ; conditional: if CONDITION THEN ELSE
 Read all standard input: input _ (a String); print VALUE prints a line.
@@ -44,7 +44,7 @@ num TEXT (integer conversion), str INTEGER, strjoin LIST DELIMITER.
 Typed lists: [1 2 3], listmap, listfilter, listfold, listreverse, sortint,
 listlen, listat, listtake, listdrop. Recursion is supported.
 No imports, parentheses, semicolons, or explicit type annotations.
-Use only operations supported by Ain's native Rust backend.
+Use only operations supported by Babel's native Rust backend.
 """
 
 
@@ -52,7 +52,7 @@ def prompt_for(task: dict[str, Any], language: str) -> str:
     """Produce the exact reusable prompt; do not include private test cases."""
     language_name = LANGUAGES[language][1]
     notes = {
-        "ain": AIN_PRIMER,
+        "babel": BABEL_PRIMER,
         "python": "Use only the Python 3 standard library. Read from stdin.",
         "rust": "Use only the Rust standard library. Write a complete main function.",
         "typescript": (
@@ -161,10 +161,10 @@ def run_process(
         }
 
 
-def commands(language: str, source: Path, tempdir: Path, ainc: str):
+def commands(language: str, source: Path, tempdir: Path, babelc: str):
     binary = tempdir / "candidate"
-    if language == "ain":
-        return [ainc, "build", str(source), "-o", str(binary)], [str(binary)]
+    if language == "babel":
+        return [babelc, "build", str(source), "-o", str(binary)], [str(binary)]
     if language == "python":
         return None, [sys.executable, "-I", str(source)]
     if language == "rust":
@@ -245,7 +245,7 @@ def generate_responses(tasks: list[dict[str, Any]], args: argparse.Namespace) ->
 
 def evaluate(
     task: dict[str, Any], language: str, attempt: int,
-    response_path: Path, *, ainc: str, timeout: float, compile_timeout: float
+    response_path: Path, *, babelc: str, timeout: float, compile_timeout: float
 ) -> dict[str, Any]:
     row: dict[str, Any] = {
         "task": task["id"], "language": language, "attempt": attempt,
@@ -267,11 +267,11 @@ def evaluate(
     source = response["source"]
     row["source_sha256"] = hashlib.sha256(source.encode("utf-8")).hexdigest()
     row["source_bytes"] = len(source.encode("utf-8"))
-    with tempfile.TemporaryDirectory(prefix="ain-llm-bench-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="babel-llm-bench-") as tmp:
         workdir = Path(tmp)
         source_path = workdir / LANGUAGES[language][0]
         source_path.write_text(source, encoding="utf-8")
-        compile_cmd, execute_cmd = commands(language, source_path, workdir, ainc)
+        compile_cmd, execute_cmd = commands(language, source_path, workdir, babelc)
         if compile_cmd is not None:
             result = run_process(compile_cmd, cwd=workdir, timeout=compile_timeout)
             row["compile"] = result
@@ -338,10 +338,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mode.add_argument("--api-responses-dir", type=Path, metavar="DIR",
                       help="Generate with an OpenAI-compatible API, then evaluate")
     parser.add_argument("--tasks", type=Path, default=DEFAULT_TASKS)
-    parser.add_argument("--languages", default="ain,python,rust,typescript")
+    parser.add_argument("--languages", default="babel,python,rust,typescript")
     parser.add_argument("--attempts", type=int, default=1)
     parser.add_argument("--report", type=Path, default=Path("llm-bench-results.json"))
-    parser.add_argument("--ainc", default=os.environ.get("AINC", "ainc"))
+    parser.add_argument("--babelc", default=os.environ.get("AINC", "babelc"))
     parser.add_argument("--timeout", type=float, default=3)
     parser.add_argument("--compile-timeout", type=float, default=120)
     parser.add_argument("--api-base-url", default="https://api.openai.com/v1",
@@ -373,7 +373,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if not args.languages or len(args.languages) != len(set(args.languages)) or any(
         x not in LANGUAGES for x in args.languages
     ):
-        parser.error("--languages must be distinct values from ain,python,rust,typescript")
+        parser.error("--languages must be distinct values from babel,python,rust,typescript")
     if args.attempts < 1 or args.timeout <= 0 or args.compile_timeout <= 0:
         parser.error("attempts and timeouts must be positive")
     if args.api_responses_dir:
@@ -422,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
         evaluate(
             task, language, attempt,
             args.responses_dir / task["id"] / language / f"{attempt}.json",
-            ainc=args.ainc, timeout=args.timeout,
+            babelc=args.babelc, timeout=args.timeout,
             compile_timeout=args.compile_timeout,
         )
         for task in tasks for language in args.languages

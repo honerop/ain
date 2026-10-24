@@ -1,5 +1,5 @@
 {
-  description = "AIN compiler v0.2.0 development shell";
+  description = "Babel compiler v0.3.1 development shell";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   outputs = { self, nixpkgs }:
     let

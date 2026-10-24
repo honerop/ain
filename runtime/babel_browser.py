@@ -191,7 +191,7 @@ def serve():
                     page = context.new_page()
                     page.set_default_timeout(10000)
                 if op == "selftest":
-                    page.set_content("""<!doctype html><html><head><title>Ain browser check</title></head>
+                    page.set_content("""<!doctype html><html><head><title>Babel browser check</title></head>
                         <body><h1 id='state'>Ready</h1><input id='content'>
                         <button id='apply' onclick="document.querySelector('#state').textContent =
                           document.querySelector('#content').value">Apply</button>

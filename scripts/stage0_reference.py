@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Temporary independent stage-zero AIN subset -> C compiler for offline verification.
-Production bootstrap can use the Rust-based \`ainc transpile\` instead.
+"""Temporary independent stage-zero BABEL subset -> C compiler for offline verification.
+Production bootstrap can use the Rust-based \`babelc transpile\` instead.
 This reference compiler is *not* the self-hosted compiler.
 """
 import argparse
@@ -61,9 +61,9 @@ def compile_ain(source:str)->str:
             args=[]
             for _ in range(arities[t]):
                 e,pos=expr(tokens,pos);args.append(e)
-            name=MAPPING.get(t,('ain_' if t in names else 'v_')+t)
+            name=MAPPING.get(t,('babel_' if t in names else 'v_')+t)
             return f'{name}({",".join(args)})',pos
-        return f'ain_{t}',pos
+        return f'babel_{t}',pos
     def full(tokens):
         e,p=expr(tokens)
         if p!=len(tokens):raise ValueError(f'extra tokens: {tokens[p:]}')
@@ -73,12 +73,12 @@ def compile_ain(source:str)->str:
         if '=' not in line:main.append(f'  (void){full(line)};');continue
         eq=line.index('='); name=line[0];params=line[1:eq];body=line[eq+1:]
         if params:
-            args=','.join('V '+('ain_'+p if p!='_' else f'_unit_{i}') for i,p in enumerate(params))
-            declarations.append(f'V ain_{name}({args});')
-            defs.append(f'V ain_{name}({args}){{return {full(body)};}}')
+            args=','.join('V '+('babel_'+p if p!='_' else f'_unit_{i}') for i,p in enumerate(params))
+            declarations.append(f'V babel_{name}({args});')
+            defs.append(f'V babel_{name}({args}){{return {full(body)};}}')
         else:
-            main.append(f'  V ain_{name}={full(body)};')
-    return '\n'.join(['#include "ain_runtime.h"',*declarations,*defs,'int main(void){',*main,'return 0;}',''])
+            main.append(f'  V babel_{name}={full(body)};')
+    return '\n'.join(['#include "babel_runtime.h"',*declarations,*defs,'int main(void){',*main,'return 0;}',''])
 
 if __name__=='__main__':
     ap=argparse.ArgumentParser();ap.add_argument('source',type=Path);ap.add_argument('-o',type=Path,default=None)

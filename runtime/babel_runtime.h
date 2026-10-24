@@ -1,8 +1,8 @@
-/* AIN bootstrap C runtime. Stage 1/2/3 use this same tiny trusted ABI.
+/* BABEL bootstrap C runtime. Stage 1/2/3 use this same tiny trusted ABI.
  * Memory is reclaimed at process exit; suitable for compilation tasks, not long-lived servers.
  */
-#ifndef AIN_RUNTIME_H
-#define AIN_RUNTIME_H
+#ifndef BABEL_RUNTIME_H
+#define BABEL_RUNTIME_H
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -13,7 +13,7 @@
 
 typedef struct { int tag; int64_t i; const char *s; } V;
 enum { T_UNIT, T_INT, T_BOOL, T_STR };
-static void v_fail(const char *message) { fprintf(stderr, "ain runtime: %s\n", message); exit(1); }
+static void v_fail(const char *message) { fprintf(stderr, "babel runtime: %s\n", message); exit(1); }
 static V v_unit(void) { return (V){T_UNIT, 0, NULL}; }
 static V v_int(int64_t n) { return (V){T_INT, n, NULL}; }
 static V v_bool(int n) { return (V){T_BOOL, !!n, NULL}; }
@@ -116,9 +116,9 @@ static V v_replace(V a,V b,V c){const char *s=v_s(a),*old=v_s(b),*newtext=v_s(c)
 #include <unistd.h>
 #include <sys/wait.h>
 static void v_allow(const char *capability) {
- const char *restricted=getenv("AIN_RESTRICTED");
+ const char *restricted=getenv("BABEL_RESTRICTED");
  if (!restricted || strcmp(restricted,"1")) return;
- const char *allowed=getenv("AIN_PERMISSIONS");
+ const char *allowed=getenv("BABEL_PERMISSIONS");
  if (!allowed) v_fail("capability denied");
  size_t n=strlen(capability);
  const char *p=allowed;

@@ -1,6 +1,6 @@
-# Statically inferred tuple pairs in Ain
+# Statically inferred tuple pairs in Babel
 
-Ain supports heterogeneous tuple pairs without boxing values into dynamic
+Babel supports heterogeneous tuple pairs without boxing values into dynamic
 JSON `Data`. The compiler infers both element types, including nested lists,
 maps, and tuples. These values are compiled to native Rust tuple types.
 
@@ -16,7 +16,7 @@ print tupleswap person
 - `tuplesnd PAIR` returns the second value with its exact type.
 - `tupleswap PAIR` returns `(B,A)`.
 
-Ain's earlier `pair` builtin still constructs a *dynamic* two-item Data
+Babel's earlier `pair` builtin still constructs a *dynamic* two-item Data
 list for JSON-style operations, so it is not interchangeable with a native
 tuple.
 

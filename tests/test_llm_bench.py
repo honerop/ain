@@ -25,8 +25,8 @@ class LlmBenchTests(unittest.TestCase):
         task = dict(SAMPLE)
         task["cases"] = [{"stdin": "HIDDEN_SECRET_214", "stdout": "secret"},
                          {"stdin": "HIDDEN_SECRET_215", "stdout": "secret"}]
-        prompt = llm_bench.prompt_for(task, "ain")
-        self.assertIn("Ain", prompt)
+        prompt = llm_bench.prompt_for(task, "babel")
+        self.assertIn("Babel", prompt)
         self.assertNotIn("HIDDEN_SECRET_214", prompt)
         self.assertNotIn("HIDDEN_SECRET_215", prompt)
 
@@ -43,7 +43,7 @@ class LlmBenchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             response = Path(tmp) / "1.json"
             response.write_text(json.dumps({"source": WORKING}), encoding="utf-8")
-            row = llm_bench.evaluate(SAMPLE, "python", 1, response, ainc="ainc",
+            row = llm_bench.evaluate(SAMPLE, "python", 1, response, babelc="babelc",
                                      timeout=2, compile_timeout=10)
             self.assertTrue(row["passed"], row)
             self.assertEqual(row["passed_cases"], 2)
@@ -55,7 +55,7 @@ class LlmBenchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             response = Path(tmp) / "1.json"
             response.write_text(json.dumps({"source": "print(0)\n"}), encoding="utf-8")
-            row = llm_bench.evaluate(SAMPLE, "python", 1, response, ainc="ainc",
+            row = llm_bench.evaluate(SAMPLE, "python", 1, response, babelc="babelc",
                                      timeout=2, compile_timeout=10)
             self.assertFalse(row["passed"])
             self.assertEqual(row["status"], "failed")
@@ -63,7 +63,7 @@ class LlmBenchTests(unittest.TestCase):
     def test_missing_response_not_counted_as_submission(self):
         with tempfile.TemporaryDirectory() as tmp:
             row = llm_bench.evaluate(SAMPLE, "python", 1, Path(tmp) / "1.json",
-                                     ainc="ainc", timeout=2, compile_timeout=10)
+                                     babelc="babelc", timeout=2, compile_timeout=10)
             self.assertEqual(row["status"], "missing")
             summary = llm_bench.summarize([row], [SAMPLE], ["python"])
             self.assertEqual(summary["python"]["submitted_attempts"], 0)
@@ -74,7 +74,7 @@ class LlmBenchTests(unittest.TestCase):
             path = Path(tmp) / "1.json"
             path.write_text(json.dumps({"source": "```python\nprint(1)\n```"}),
                             encoding="utf-8")
-            row = llm_bench.evaluate(SAMPLE, "python", 1, path, ainc="ainc",
+            row = llm_bench.evaluate(SAMPLE, "python", 1, path, babelc="babelc",
                                      timeout=2, compile_timeout=10)
             self.assertEqual(row["status"], "invalid_response")
 
@@ -84,7 +84,7 @@ class LlmBenchTests(unittest.TestCase):
             path.write_text(json.dumps({
                 "source": WORKING, "usage": {"input_tokens": 77, "output_tokens": 35}
             }), encoding="utf-8")
-            row = llm_bench.evaluate(SAMPLE, "python", 1, path, ainc="ainc",
+            row = llm_bench.evaluate(SAMPLE, "python", 1, path, babelc="babelc",
                                      timeout=2, compile_timeout=10)
             summary = llm_bench.summarize([row], [SAMPLE], ["python"])
             self.assertEqual(summary["python"]["input_tokens_known_total"], 77)
@@ -97,9 +97,9 @@ class LlmBenchTests(unittest.TestCase):
             tasks.write_text(json.dumps([SAMPLE]), encoding="utf-8")
             self.assertEqual(llm_bench.main([
                 "--export-prompts", str(base / "prompts"), "--tasks", str(tasks),
-                "--languages", "ain,python",
+                "--languages", "babel,python",
             ]), 0)
-            self.assertTrue((base / "prompts" / "pair" / "ain" / "prompt.txt").is_file())
+            self.assertTrue((base / "prompts" / "pair" / "babel" / "prompt.txt").is_file())
 
     def test_execution_requires_explicit_opt_in(self):
         with self.assertRaises(SystemExit) as raised:

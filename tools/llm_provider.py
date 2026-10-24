@@ -1,4 +1,4 @@
-"""OpenAI-compatible Chat Completions adapter for the Ain LLM benchmark.
+"""OpenAI-compatible Chat Completions adapter for the Babel LLM benchmark.
 
 Uses only the Python standard library. No API requests occur on import.
 Credentials are read from the selected environment variable at call time.
@@ -129,7 +129,7 @@ def generate(
     if max_output_tokens is not None:
         body[max_tokens_field] = max_output_tokens
     headers = {"Content-Type": "application/json", "Accept": "application/json",
-               "User-Agent": "ain-llm-benchmark/1"}
+               "User-Agent": "babel-llm-benchmark/1"}
     if api_key is not None:
         headers["Authorization"] = f"Bearer {api_key}"
     encoded = json.dumps(body, ensure_ascii=False).encode("utf-8")

@@ -1,4 +1,4 @@
-# Recursive function compiled by AIN itself
+# Recursive function compiled by BABEL itself
 fact n = if <= n 1 1 * n fact - n 1
 print fact 6
 print if true 42 / 1 0

@@ -1,6 +1,6 @@
 # Native TCP and loopback HTTP server
 
-Ain's native backend includes two network operations built on Rust's standard
+Babel's native backend includes two network operations built on Rust's standard
 library, in addition to `httpget`, `httppost`, and `httprequest`.
 
 ## TCP client
@@ -22,19 +22,19 @@ It accepts ports 1024..65535, waits up to five seconds for a connection, and
 limits request headers to 8 KiB and response text to 128 KiB.
 
 ```text
-print encode httpserveonce 8080 "Hello from Ain"
+print encode httpserveonce 8080 "Hello from Babel"
 ```
 
-An Ain application can run this on a background native `spawn` task using
+An Babel application can run this on a background native `spawn` task using
 a named Data callback; however, this API only serves one request. It does not
 yet implement persistent HTTP servers, request bodies, routing, streaming,
 TLS termination, or authentication. The fixed-response API is a tested
 server foundation, not a production HTTP framework.
 
-All operations require Ain's optional `network` capability when
-`AIN_RESTRICTED=1`. Builtin permission checks are **not** OS network isolation.
+All operations require Babel's optional `network` capability when
+`BABEL_RESTRICTED=1`. Builtin permission checks are **not** OS network isolation.
 Do not expose these APIs to untrusted remote input without an actual sandbox
 and appropriate application controls.
 
-Tests use real loopback TCP sockets, a spawned compiled Ain HTTP server,
+Tests use real loopback TCP sockets, a spawned compiled Babel HTTP server,
 HTTP request/response assertions, and compile-time argument checks.

@@ -1,33 +1,33 @@
-// Ain's standard-library Data type: structured JSON values, persistent-style
+// Babel's standard-library Data type: structured JSON values, persistent-style
 // list/object operations, and deterministic canonical serialization.
-// No third-party crates are required to compile generated Ain programs.
+// No third-party crates are required to compile generated Babel programs.
 #[derive(Clone, Debug, PartialEq)]
-enum AinData {
+enum BabelData {
     Null,
     Bool(bool),
     Number(String),
     Text(String),
-    List(Vec<AinData>),
-    Object(std::collections::BTreeMap<String, AinData>),
+    List(Vec<BabelData>),
+    Object(std::collections::BTreeMap<String, BabelData>),
 }
-impl AinText for AinData {
-    fn ain_text(&self) -> String { self.json() }
+impl BabelText for BabelData {
+    fn babel_text(&self) -> String { self.json() }
 }
-impl AinData {
+impl BabelData {
     fn json(&self) -> String {
         match self {
             Self::Null => "null".into(),
             Self::Bool(b) => b.to_string(),
             Self::Number(n) => n.clone(),
-            Self::Text(s) => ain_json_quote(s),
+            Self::Text(s) => babel_json_quote(s),
             Self::List(values) => format!("[{}]", values.iter().map(Self::json).collect::<Vec<_>>().join(",")),
             Self::Object(values) => format!("{{{}}}", values.iter()
-                .map(|(key, value)| format!("{}:{}", ain_json_quote(key), value.json()))
+                .map(|(key, value)| format!("{}:{}", babel_json_quote(key), value.json()))
                 .collect::<Vec<_>>().join(",")),
         }
     }
 }
-fn ain_json_quote(s: &str) -> String {
+fn babel_json_quote(s: &str) -> String {
     let mut out = String::from("\"");
     for c in s.chars() {
         match c {
@@ -45,10 +45,10 @@ fn ain_json_quote(s: &str) -> String {
     out.push('"');
     out
 }
-struct AinJsonParser<'a> {
+struct BabelJsonParser<'a> {
     iter: std::iter::Peekable<std::str::Chars<'a>>,
 }
-impl AinJsonParser<'_> {
+impl BabelJsonParser<'_> {
     fn white(&mut self) {
         while matches!(self.iter.peek(), Some(' ' | '\t' | '\r' | '\n')) { self.iter.next(); }
     }
@@ -148,20 +148,20 @@ impl AinJsonParser<'_> {
         }
         Ok(value)
     }
-    fn value(&mut self, depth: usize) -> Result<AinData, String> {
+    fn value(&mut self, depth: usize) -> Result<BabelData, String> {
         if depth > 64 { return Err("JSON nesting is too deep".into()); }
         self.white();
         match self.iter.peek().copied().ok_or("Expected JSON value")? {
-            'n' => { self.literal("null")?; Ok(AinData::Null) }
-            't' => { self.literal("true")?; Ok(AinData::Bool(true)) }
-            'f' => { self.literal("false")?; Ok(AinData::Bool(false)) }
-            '"' => Ok(AinData::Text(self.quoted()?)),
-            '-' | '0'..='9' => Ok(AinData::Number(self.number()?)),
+            'n' => { self.literal("null")?; Ok(BabelData::Null) }
+            't' => { self.literal("true")?; Ok(BabelData::Bool(true)) }
+            'f' => { self.literal("false")?; Ok(BabelData::Bool(false)) }
+            '"' => Ok(BabelData::Text(self.quoted()?)),
+            '-' | '0'..='9' => Ok(BabelData::Number(self.number()?)),
             '[' => {
                 self.take('[')?;
                 let mut items = Vec::new();
                 self.white();
-                if self.iter.peek() == Some(&']') { self.iter.next(); return Ok(AinData::List(items)); }
+                if self.iter.peek() == Some(&']') { self.iter.next(); return Ok(BabelData::List(items)); }
                 loop {
                     items.push(self.value(depth + 1)?);
                     self.white();
@@ -171,13 +171,13 @@ impl AinJsonParser<'_> {
                         _ => return Err("Expected ',' or ']'".into()),
                     }
                 }
-                Ok(AinData::List(items))
+                Ok(BabelData::List(items))
             }
             '{' => {
                 self.take('{')?;
                 let mut items = std::collections::BTreeMap::new();
                 self.white();
-                if self.iter.peek() == Some(&'}') { self.iter.next(); return Ok(AinData::Object(items)); }
+                if self.iter.peek() == Some(&'}') { self.iter.next(); return Ok(BabelData::Object(items)); }
                 loop {
                     let key = self.quoted()?;
                     self.take(':')?;
@@ -190,122 +190,122 @@ impl AinJsonParser<'_> {
                         _ => return Err("Expected ',' or '}'".into()),
                     }
                 }
-                Ok(AinData::Object(items))
+                Ok(BabelData::Object(items))
             }
             _ => Err("Unexpected JSON token".into())
         }
     }
 }
-fn ain_json_parse(source: String) -> Result<AinData, String> {
+fn babel_json_parse(source: String) -> Result<BabelData, String> {
     if source.len() > 8 * 1024 * 1024 { return Err("JSON input exceeds 8 MiB".into()); }
-    let mut p = AinJsonParser { iter: source.chars().peekable() };
+    let mut p = BabelJsonParser { iter: source.chars().peekable() };
     let parsed = p.value(0)?;
     p.white();
     if p.iter.next().is_some() { return Err("Unexpected trailing JSON data".into()); }
     Ok(parsed)
 }
-fn ain_json(source: String) -> AinData {
-    ain_json_parse(source).unwrap_or_else(|error| panic!("Invalid JSON: {}", error))
+fn babel_json(source: String) -> BabelData {
+    babel_json_parse(source).unwrap_or_else(|error| panic!("Invalid JSON: {}", error))
 }
-fn ain_tryjson(source: String) -> AinData {
-    match ain_json_parse(source) {
-        Ok(value) => ain_result(true, value, ""),
-        Err(error) => ain_result(false, AinData::Null, &error),
+fn babel_tryjson(source: String) -> BabelData {
+    match babel_json_parse(source) {
+        Ok(value) => babel_result(true, value, ""),
+        Err(error) => babel_result(false, BabelData::Null, &error),
     }
 }
-fn ain_result(ok: bool, value: AinData, error: &str) -> AinData {
+fn babel_result(ok: bool, value: BabelData, error: &str) -> BabelData {
     let mut fields = std::collections::BTreeMap::new();
-    fields.insert("ok".into(), AinData::Bool(ok));
+    fields.insert("ok".into(), BabelData::Bool(ok));
     fields.insert("value".into(), value);
-    fields.insert("error".into(), AinData::Text(error.into()));
-    AinData::Object(fields)
+    fields.insert("error".into(), BabelData::Text(error.into()));
+    BabelData::Object(fields)
 }
-fn ain_data_array(_: ()) -> AinData { AinData::List(Vec::new()) }
-fn ain_data_record(_: ()) -> AinData { AinData::Object(std::collections::BTreeMap::new()) }
-fn ain_data_null(_: ()) -> AinData { AinData::Null }
-fn ain_data_int(v: i64) -> AinData { AinData::Number(v.to_string()) }
-fn ain_data_text(v: String) -> AinData { AinData::Text(v) }
-fn ain_data_bool(v: bool) -> AinData { AinData::Bool(v) }
-fn ain_data_pair(a: AinData, b: AinData) -> AinData { AinData::List(vec![a, b]) }
-fn ain_data_push(value: AinData, item: AinData) -> AinData {
-    match value { AinData::List(mut items) => { items.push(item); AinData::List(items) },
+fn babel_data_array(_: ()) -> BabelData { BabelData::List(Vec::new()) }
+fn babel_data_record(_: ()) -> BabelData { BabelData::Object(std::collections::BTreeMap::new()) }
+fn babel_data_null(_: ()) -> BabelData { BabelData::Null }
+fn babel_data_int(v: i64) -> BabelData { BabelData::Number(v.to_string()) }
+fn babel_data_text(v: String) -> BabelData { BabelData::Text(v) }
+fn babel_data_bool(v: bool) -> BabelData { BabelData::Bool(v) }
+fn babel_data_pair(a: BabelData, b: BabelData) -> BabelData { BabelData::List(vec![a, b]) }
+fn babel_data_push(value: BabelData, item: BabelData) -> BabelData {
+    match value { BabelData::List(mut items) => { items.push(item); BabelData::List(items) },
         _ => panic!("push requires list") }
 }
-fn ain_data_get(value: AinData, index: i64) -> AinData {
-    match value { AinData::List(items) => usize::try_from(index).ok()
-        .and_then(|i| items.get(i).cloned()).unwrap_or(AinData::Null),
+fn babel_data_get(value: BabelData, index: i64) -> BabelData {
+    match value { BabelData::List(items) => usize::try_from(index).ok()
+        .and_then(|i| items.get(i).cloned()).unwrap_or(BabelData::Null),
         _ => panic!("get requires list") }
 }
-fn ain_data_put(value: AinData, key: String, item: AinData) -> AinData {
-    match value { AinData::Object(mut fields) => {
-        fields.insert(key, item); AinData::Object(fields)
+fn babel_data_put(value: BabelData, key: String, item: BabelData) -> BabelData {
+    match value { BabelData::Object(mut fields) => {
+        fields.insert(key, item); BabelData::Object(fields)
     }, _ => panic!("put requires record") }
 }
-fn ain_data_field(value: AinData, key: String) -> AinData {
-    match value { AinData::Object(fields) => fields.get(&key).cloned().unwrap_or(AinData::Null),
+fn babel_data_field(value: BabelData, key: String) -> BabelData {
+    match value { BabelData::Object(fields) => fields.get(&key).cloned().unwrap_or(BabelData::Null),
         _ => panic!("field requires record") }
 }
-fn ain_data_size(value: AinData) -> i64 {
-    match value { AinData::List(items) => items.len() as i64,
-        AinData::Object(fields) => fields.len() as i64, _ => panic!("size requires list or record") }
+fn babel_data_size(value: BabelData) -> i64 {
+    match value { BabelData::List(items) => items.len() as i64,
+        BabelData::Object(fields) => fields.len() as i64, _ => panic!("size requires list or record") }
 }
-fn ain_data_keys(value: AinData) -> AinData {
-    match value { AinData::Object(fields) => AinData::List(fields.keys()
-        .map(|key| AinData::Text(key.clone())).collect()), _ => panic!("keys requires record") }
+fn babel_data_keys(value: BabelData) -> BabelData {
+    match value { BabelData::Object(fields) => BabelData::List(fields.keys()
+        .map(|key| BabelData::Text(key.clone())).collect()), _ => panic!("keys requires record") }
 }
-fn ain_data_has(value: AinData, key: String) -> bool {
-    match value { AinData::Object(fields) => fields.contains_key(&key),
+fn babel_data_has(value: BabelData, key: String) -> bool {
+    match value { BabelData::Object(fields) => fields.contains_key(&key),
         _ => panic!("has requires record") }
 }
-fn ain_data_asint(value: AinData) -> i64 {
-    match value { AinData::Number(v) => v.parse::<i64>().expect("integer out of range"),
+fn babel_data_asint(value: BabelData) -> i64 {
+    match value { BabelData::Number(v) => v.parse::<i64>().expect("integer out of range"),
         _ => panic!("Expected numeric value") }
 }
-fn ain_data_astext(value: AinData) -> String {
-    match value { AinData::Text(v) => v, _ => panic!("Expected text value") }
+fn babel_data_astext(value: BabelData) -> String {
+    match value { BabelData::Text(v) => v, _ => panic!("Expected text value") }
 }
-fn ain_data_asbool(value: AinData) -> bool {
-    match value { AinData::Bool(v) => v, _ => panic!("Expected boolean value") }
+fn babel_data_asbool(value: BabelData) -> bool {
+    match value { BabelData::Bool(v) => v, _ => panic!("Expected boolean value") }
 }
-fn ain_data_map<F: Fn(AinData) -> AinData>(list: AinData, f: F) -> AinData {
-    match list { AinData::List(items) => AinData::List(items.into_iter().map(f).collect()),
+fn babel_data_map<F: Fn(BabelData) -> BabelData>(list: BabelData, f: F) -> BabelData {
+    match list { BabelData::List(items) => BabelData::List(items.into_iter().map(f).collect()),
         _ => panic!("map requires list") }
 }
-fn ain_data_filter<F: Fn(AinData) -> bool>(list: AinData, f: F) -> AinData {
-    match list { AinData::List(items) => AinData::List(items.into_iter()
+fn babel_data_filter<F: Fn(BabelData) -> bool>(list: BabelData, f: F) -> BabelData {
+    match list { BabelData::List(items) => BabelData::List(items.into_iter()
         .filter(|item| f(item.clone())).collect()), _ => panic!("filter requires list") }
 }
-fn ain_data_fold<F: Fn(AinData, AinData) -> AinData>(
-        list: AinData, init: AinData, f: F) -> AinData {
-    match list { AinData::List(items) => items.into_iter().fold(init, f),
+fn babel_data_fold<F: Fn(BabelData, BabelData) -> BabelData>(
+        list: BabelData, init: BabelData, f: F) -> BabelData {
+    match list { BabelData::List(items) => items.into_iter().fold(init, f),
         _ => panic!("fold requires list") }
 }
 
-type AinCell = std::rc::Rc<std::cell::RefCell<AinData>>;
-impl AinText for AinCell {
-    fn ain_text(&self) -> String { self.borrow().json() }
+type BabelCell = std::rc::Rc<std::cell::RefCell<BabelData>>;
+impl BabelText for BabelCell {
+    fn babel_text(&self) -> String { self.borrow().json() }
 }
-fn ain_data_state(value: AinData) -> AinCell {
+fn babel_data_state(value: BabelData) -> BabelCell {
     std::rc::Rc::new(std::cell::RefCell::new(value))
 }
-fn ain_data_readstate(cell: AinCell) -> AinData {
+fn babel_data_readstate(cell: BabelCell) -> BabelData {
     cell.borrow().clone()
 }
-fn ain_data_setstate(cell: AinCell, value: AinData) {
+fn babel_data_setstate(cell: BabelCell, value: BabelData) {
     *cell.borrow_mut() = value;
 }
-fn ain_data_swapstate(cell: AinCell, value: AinData) -> AinData {
+fn babel_data_swapstate(cell: BabelCell, value: BabelData) -> BabelData {
     std::mem::replace(&mut *cell.borrow_mut(), value)
 }
-fn ain_data_iterate<F: Fn(AinData) -> AinData>(
-        n: i64, mut value: AinData, f: F) -> AinData {
+fn babel_data_iterate<F: Fn(BabelData) -> BabelData>(
+        n: i64, mut value: BabelData, f: F) -> BabelData {
     assert!((0..=1_000_000).contains(&n), "iterate must be between 0 and 1,000,000");
     for _ in 0..n { value = f(value); }
     value
 }
-fn ain_data_each<F: Fn(AinData)>(list: AinData, f: F) {
+fn babel_data_each<F: Fn(BabelData)>(list: BabelData, f: F) {
     match list {
-        AinData::List(items) => for item in items { f(item); },
+        BabelData::List(items) => for item in items { f(item); },
         _ => panic!("each requires list")
     }
 }

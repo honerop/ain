@@ -1,6 +1,6 @@
-# Statically typed lists in Ain
+# Statically typed lists in Babel
 
-Ain is functional-first, not purely functional, and has both dynamic JSON-style
+Babel is functional-first, not purely functional, and has both dynamic JSON-style
 Data lists and statically inferred, homogeneous native lists.
 
 ```text
@@ -48,7 +48,7 @@ The compiler accepts nonempty list literals, with or without whitespace next
 to the square brackets. Elements are prefix expressions, not just primitive
 values. For example:
 
-```ain
+```babel
 inc x = + x 1
 xs = [1 2 3]
 print lm inc xs
@@ -56,7 +56,7 @@ print lm inc xs
 
 This is exactly equivalent to:
 
-```ain
+```babel
 inc x = + x 1
 xs = listpush listpush listof 1 2 3
 print listmap "inc" xs

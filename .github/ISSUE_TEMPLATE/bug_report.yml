@@ -5,7 +5,7 @@ labels: ["bug"]
 body:
   - type: markdown
     attributes:
-      value: "AIN is experimental. Please avoid sharing secrets or security exploit details in public issues."
+      value: "BABEL is experimental. Please avoid sharing secrets or security exploit details in public issues."
   - type: textarea
     id: description
     attributes:
@@ -16,7 +16,7 @@ body:
   - type: textarea
     id: source
     attributes:
-      label: Minimal AIN reproduction
+      label: Minimal BABEL reproduction
       description: Include the smallest source program that reproduces the issue.
       render: text
     validations:

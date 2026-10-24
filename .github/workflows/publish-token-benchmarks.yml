@@ -22,7 +22,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: publish-ain-token-results
+  group: publish-babel-token-results
   cancel-in-progress: false
 
 jobs:
@@ -52,5 +52,5 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: refresh published Ain token benchmarks [skip ci]"
+          git commit -m "chore: refresh published Babel token benchmarks [skip ci]"
           git push

@@ -1,6 +1,6 @@
 // Deliberately narrow native C ABI FFI for signed 64-bit integer functions.
 // The caller MUST know the library symbol has the declared ABI/signature.
-// Loading arbitrary native libraries is inherently unsafe: Ain's builtin
+// Loading arbitrary native libraries is inherently unsafe: Babel's builtin
 // permission gate is NOT a native-code sandbox.
 #[link(name="dl")]
 unsafe extern "C" {
@@ -9,18 +9,18 @@ unsafe extern "C" {
     fn dlclose(handle: *mut std::ffi::c_void) -> i32;
     fn dlerror() -> *const std::ffi::c_char;
 }
-struct AinForeignLibrary(*mut std::ffi::c_void);
-impl Drop for AinForeignLibrary {
+struct BabelForeignLibrary(*mut std::ffi::c_void);
+impl Drop for BabelForeignLibrary {
     fn drop(&mut self) { unsafe { dlclose(self.0); } }
 }
-fn ain_foreign_error() -> String {
+fn babel_foreign_error() -> String {
     let ptr = unsafe { dlerror() };
     if ptr.is_null() { "Unknown native library error".into() }
     else { unsafe { std::ffi::CStr::from_ptr(ptr) }.to_string_lossy().into_owned() }
 }
-fn ain_ffi_call(lib: String, function: String, args: &[i64]) -> AinData {
-    let run = (|| -> Result<AinData, String> {
-        if !ain_permission_allowed("ffi") { return Err("Ain capability denied: ffi".into()); }
+fn babel_ffi_call(lib: String, function: String, args: &[i64]) -> BabelData {
+    let run = (|| -> Result<BabelData, String> {
+        if !babel_permission_allowed("ffi") { return Err("Babel capability denied: ffi".into()); }
         if lib.is_empty() || lib.len() > 1024 || function.is_empty() || function.len() > 128
             || !function.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
             return Err("Invalid native library or function name".into());
@@ -29,8 +29,8 @@ fn ain_ffi_call(lib: String, function: String, args: &[i64]) -> AinData {
         let symbol = std::ffi::CString::new(function).map_err(|_| "Symbol contains NUL")?;
         // RTLD_NOW=2; do not use RTLD_GLOBAL or dlopen(NULL).
         let ptr = unsafe { dlopen(path.as_ptr(), 2) };
-        if ptr.is_null() { return Err(format!("Cannot load library: {}", ain_foreign_error())); }
-        let handle = AinForeignLibrary(ptr);
+        if ptr.is_null() { return Err(format!("Cannot load library: {}", babel_foreign_error())); }
+        let handle = BabelForeignLibrary(ptr);
         // Clear any previous loader error before symbol lookup.
         unsafe { dlerror(); }
         let function = unsafe { dlsym(handle.0, symbol.as_ptr()) };
@@ -60,10 +60,10 @@ fn ain_ffi_call(lib: String, function: String, args: &[i64]) -> AinData {
                 _ => return Err("Only 0..2 integer arguments are supported".into())
             }
         };
-        Ok(AinData::Number(value.to_string()))
+        Ok(BabelData::Number(value.to_string()))
     })();
-    match run { Ok(value) => ain_result(true, value, ""), Err(e) => ain_result(false, AinData::Null, &e) }
+    match run { Ok(value) => babel_result(true, value, ""), Err(e) => babel_result(false, BabelData::Null, &e) }
 }
-fn ain_ffi0(lib: String, function: String) -> AinData { ain_ffi_call(lib,function,&[]) }
-fn ain_ffi1(lib: String, function: String, a: i64) -> AinData { ain_ffi_call(lib,function,&[a]) }
-fn ain_ffi2(lib: String, function: String, a: i64, b: i64) -> AinData { ain_ffi_call(lib,function,&[a,b]) }
+fn babel_ffi0(lib: String, function: String) -> BabelData { babel_ffi_call(lib,function,&[]) }
+fn babel_ffi1(lib: String, function: String, a: i64) -> BabelData { babel_ffi_call(lib,function,&[a]) }
+fn babel_ffi2(lib: String, function: String, a: i64, b: i64) -> BabelData { babel_ffi_call(lib,function,&[a,b]) }

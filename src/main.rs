@@ -1,4 +1,4 @@
-use ain_compiler::{compile, compile_llvm, dump_air, format_source};
+use babel_compiler::{compile, compile_llvm, dump_air, format_source};
 use std::env;
 mod benchmark;
 #[cfg(feature = "token-bench")]
@@ -48,13 +48,13 @@ fn diagnostic_class(message: &str) -> (&'static str, &'static str) {
     }
 }
 fn usage() {
-    eprintln!("AIN compiler 0.3.0\nUsage:\n  ainc check <file.ain>\n  ainc fmt <file.ain> [-o output.ain]\n  ainc fmt-check <file.ain>\n  ainc check-json <file.ain>\n  ainc air <file.ain> [-o file.air]\n  ainc llvm <file.ain> [-o file.ll]\n  ainc build-llvm <file.ain> [-o executable]\n  ainc run-llvm <file.ain>\n  ainc transpile <file.ain> [-o file.rs]\n  ainc build <file.ain> [-o executable]\n  ainc run <file.ain>\n  ainc run-checked <file.ain>  # builtins default-deny unless AIN_PERMISSIONS is set\n  ainc bench FILE.ain [--backend rust|llvm|both] [--runs N] [--timeout-ms N] [--json]\n  ainc tokens FILE... [--json]  # build with --features token-bench\n  ainc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
+    eprintln!("Babel compiler 0.3.1\nUsage:\n  babelc check <file.babel>\n  babelc fmt <file.babel> [-o output.babel]\n  babelc fmt-check <file.babel>\n  babelc check-json <file.babel>\n  babelc air <file.babel> [-o file.air]\n  babelc llvm <file.babel> [-o file.ll]\n  babelc build-llvm <file.babel> [-o executable]\n  babelc run-llvm <file.babel>\n  babelc transpile <file.babel> [-o file.rs]\n  babelc build <file.babel> [-o executable]\n  babelc run <file.babel>\n  babelc run-checked <file.babel>  # builtins default-deny unless BABEL_PERMISSIONS is set\n  babelc bench FILE.babel [--backend rust|llvm|both] [--runs N] [--timeout-ms N] [--json]\n  babelc tokens FILE... [--json]  # build with --features token-bench\n  babelc --version\n\nThe experimental LLVM backend supports i64, bool, unit, recursion, and branching.\nOther operations still require the Rust backend.");
 }
 fn rustc(rust: &Path, binary: &Path) -> Result<(), String> {
     let mut cmd = Command::new("rustc");
     cmd.arg("--edition=2021").arg("-O").arg(rust).arg("-o").arg(binary);
     let generated = fs::read_to_string(rust).map_err(|e| e.to_string())?;
-    if generated.contains("fn ain_gui(") {
+    if generated.contains("fn babel_gui(") {
         let output = Command::new("pkg-config")
             .args(["--libs-only-L", "gtk4"]).output()
             .map_err(|e| format!("gui needs pkg-config and GTK4: {e}"))?;
@@ -79,7 +79,7 @@ fn clang(llvm: &Path, binary: &Path) -> Result<(), String> {
 }
 fn work_dir() -> Result<PathBuf, String> {
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
-    let path = env::temp_dir().join(format!("ainc-{}-{}", process::id(), nanos));
+    let path = env::temp_dir().join(format!("babelc-{}-{}", process::id(), nanos));
     fs::create_dir(&path).map_err(|e| e.to_string())?;
     Ok(path)
 }
@@ -93,9 +93,9 @@ fn run() -> Result<(), String> {
         { return Err("token counting is optional: cargo run --features token-bench -- tokens FILE...".into()); }
     }
     if args.len() == 1 && ["--version", "-V", "version"].contains(&args[0].as_str()) {
-        println!("ainc 0.3.0"); return Ok(());
+        println!("babelc 0.3.1"); return Ok(());
     }
-    if args.len() < 2 { usage(); return Err("expected command and .ain source path".into()); }
+    if args.len() < 2 { usage(); return Err("expected command and .babel source path".into()); }
     let action = &args[0];
     let source_file = Path::new(&args[1]);
     let output = if args.len() == 4 && args[2] == "-o" { Some(PathBuf::from(&args[3])) }
@@ -130,7 +130,7 @@ fn run() -> Result<(), String> {
                 let (code, hint) = diagnostic_class(&e.message);
                 println!("{{\"ok\":false,\"diagnostics\":[{{\"severity\":\"error\",\"code\":{},\"line\":{},\"message\":{},\"hint\":{}}}]}}",
                     json_string(code),e.line,json_string(&e.message),json_string(hint));
-                return Err("AIN source has compilation errors".into());
+                return Err("BABEL source has compilation errors".into());
             }
         }
     }
@@ -161,8 +161,8 @@ fn run() -> Result<(), String> {
         if matches!(action.as_str(), "build-llvm"|"build") {println!("built {}", binary.display());return Ok(());}
         let mut command=Command::new(&binary);
         if action == "run-checked" {
-            command.env("AIN_RESTRICTED","1");
-            // AIN_PERMISSIONS remains explicitly controlled by the caller.
+            command.env("BABEL_RESTRICTED","1");
+            // BABEL_PERMISSIONS remains explicitly controlled by the caller.
             // Builtin checks are not an operating-system sandbox.
         }
         let status=command.status().map_err(|e| e.to_string())?;

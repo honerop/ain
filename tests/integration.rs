@@ -1,5 +1,5 @@
 //! End-to-end tests. Executed by `cargo test` when rustc is available.
-use ain_compiler::compile;
+use babel_compiler::compile;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -8,9 +8,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn execute(source: &str) -> String {
-    let generated = compile(source).expect("AIN compilation").rust;
+    let generated = compile(source).expect("BABEL compilation").rust;
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    let directory: PathBuf = std::env::temp_dir().join(format!("ain-test-{}-{stamp}-{}", std::process::id(), TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)));
+    let directory: PathBuf = std::env::temp_dir().join(format!("babel-test-{}-{stamp}-{}", std::process::id(), TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)));
     fs::create_dir(&directory).unwrap();
     let file = directory.join("main.rs");
     let binary = directory.join(format!("run{}", std::env::consts::EXE_SUFFIX));
@@ -72,19 +72,19 @@ fn generic_containers_and_forward_references() {
 }
 #[test]
 fn arithmetic_program() {
-    assert_eq!(execute(include_str!("../examples/arithmetic.ain")), "25\n");
+    assert_eq!(execute(include_str!("../examples/arithmetic.babel")), "25\n");
 }
 #[test]
 fn unit_function_program() {
-    assert_eq!(execute(include_str!("../examples/hello.ain")), "I\n");
+    assert_eq!(execute(include_str!("../examples/hello.babel")), "I\n");
 }
 #[test]
 fn branch_program() {
-    assert_eq!(execute(include_str!("../examples/branches.ain")), "46\n6\n");
+    assert_eq!(execute(include_str!("../examples/branches.babel")), "46\n6\n");
 }
 #[test]
 fn unicode_and_strings_program() {
-    assert_eq!(execute(include_str!("../examples/strings.ain")), "Hello, AGENT\n6\na_b_c\n");
+    assert_eq!(execute(include_str!("../examples/strings.babel")), "Hello, AGENT\n6\na_b_c\n");
 }
 #[test]
 fn lazy_if() {
@@ -102,16 +102,16 @@ fn bool_and_unit_formatting() {
 #[test]
 fn new_string_token_and_input_primitives() {
     let c = compile("read _ = input _\nfirst s = word s\nsecond s = skip s\nvalue = before \"abc:def\" \":\"\nprint first value\nprint isnum \"123\"\n").unwrap();
-    assert!(c.rust.contains("ain_input"));
-    assert!(c.rust.contains("ain_word"));
-    assert!(c.rust.contains("ain_before"));
+    assert!(c.rust.contains("babel_input"));
+    assert!(c.rust.contains("babel_word"));
+    assert!(c.rust.contains("babel_before"));
 }
 
 #[test]
 fn selfhosted_bootstrap_source_typechecks_in_rust() {
-    let c = compile(include_str!("../bootstrap/compiler.ain")).expect("bootstrap compiler must be valid AIN");
+    let c = compile(include_str!("../bootstrap/compiler.babel")).expect("bootstrap compiler must be valid BABEL");
     assert!(c.definitions >= 40);
-    assert!(c.rust.contains("fn ain_program"));
+    assert!(c.rust.contains("fn babel_program"));
 }
 
 #[test]
@@ -213,11 +213,11 @@ print iterate "f" false boxint 0"#).is_err());
 
 #[test]
 fn structured_compiler_diagnostics() {
-    let dir = std::env::temp_dir().join(format!("ain-diagnostics-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("babel-diagnostics-{}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
-    let file = dir.join("bad.ain");
+    let file = dir.join("bad.babel");
     fs::write(&file, "print + true 3\n").unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_ainc"))
+    let output = Command::new(env!("CARGO_BIN_EXE_babelc"))
         .arg("check-json").arg(&file).output().unwrap();
     assert!(!output.status.success());
     let text = String::from_utf8(output.stdout).unwrap();
@@ -225,7 +225,7 @@ fn structured_compiler_diagnostics() {
     assert!(text.contains(r#""line":1"#));
     assert!(text.contains("type mismatch"));
     fs::write(&file, "print + 2 3\n").unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_ainc"))
+    let output = Command::new(env!("CARGO_BIN_EXE_babelc"))
         .arg("check-json").arg(&file).output().unwrap();
     assert!(output.status.success());
     assert!(String::from_utf8(output.stdout).unwrap().contains(r#""ok":true"#));
@@ -252,12 +252,12 @@ task = spawn "f" boxint 1"#).is_err());
 }
 #[test]
 fn file_read_write_and_exists() {
-    let path = std::env::temp_dir().join(format!("ain-fs-{}.txt", std::process::id()));
+    let path = std::env::temp_dir().join(format!("babel-fs-{}.txt", std::process::id()));
     let source = format!(
-        "fswrite {:?} \"Hello Ain\"\\nprint fsread {:?}\\nprint fsexists {:?}\\n",
+        "fswrite {:?} \"Hello Babel\"\\nprint fsread {:?}\\nprint fsexists {:?}\\n",
         path.to_str().unwrap(), path.to_str().unwrap(), path.to_str().unwrap()
     ).replace("\\n", "\n");
-    assert_eq!(execute(&source), "Hello Ain\ntrue\n");
+    assert_eq!(execute(&source), "Hello Babel\ntrue\n");
     fs::remove_file(&path).unwrap();
 }
 #[test]
@@ -279,9 +279,9 @@ fn native_http_get_local_server() {
 }
 #[test]
 fn permission_checks_reject_unauthorized_file_writes() {
-    let source = "fswrite \"/tmp/ain-permission-probe\" \"secret\"\n";
+    let source = "fswrite \"/tmp/babel-permission-probe\" \"secret\"\n";
     let compiled = compile(source).unwrap().rust;
-    let dir = std::env::temp_dir().join(format!("ain-permission-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("babel-permission-{}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
     let rs = dir.join("main.rs");
     let exe = dir.join("probe");
@@ -289,8 +289,8 @@ fn permission_checks_reject_unauthorized_file_writes() {
     let out = Command::new("rustc").args(["--edition=2021", "-O"])
         .arg(&rs).arg("-o").arg(&exe).output().unwrap();
     assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
-    let denied = Command::new(&exe).env("AIN_RESTRICTED", "1")
-        .env_remove("AIN_PERMISSIONS").output().unwrap();
+    let denied = Command::new(&exe).env("BABEL_RESTRICTED", "1")
+        .env_remove("BABEL_PERMISSIONS").output().unwrap();
     assert!(!denied.status.success());
     assert!(String::from_utf8_lossy(&denied.stderr).contains("capability denied"));
     let _ = fs::remove_dir_all(dir);
@@ -306,7 +306,7 @@ fn effect_builtin_type_errors() {
 #[test]
 fn sqlite_parameterized_queries_and_persistence() {
     let path = std::env::temp_dir().join(format!(
-        "ain-sqlite-{}-{}.db", std::process::id(),
+        "babel-sqlite-{}-{}.db", std::process::id(),
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
     ));
     let p = path.to_string_lossy();
@@ -334,7 +334,7 @@ print hasfield error "error"
 #[test]
 fn sqlite_parameter_count_and_multiple_statement_rejection() {
     let path = std::env::temp_dir().join(format!(
-        "ain-sqlite-reject-{}.db", std::process::id()
+        "babel-sqlite-reject-{}.db", std::process::id()
     ));
     let p = path.to_string_lossy();
     let source = format!(r#"db = {p:?}
@@ -386,7 +386,7 @@ print asbool field invalid "ok"
 }
 #[test]
 fn binary_deflate_roundtrip_and_rejects_corruption() {
-    let source = r#"raw = utf8bytes "Ain data compresses into bytes"
+    let source = r#"raw = utf8bytes "Babel data compresses into bytes"
 packed = zpack raw
 result = zunpack packed
 text = frombytes field result "value"
@@ -395,7 +395,7 @@ print astext field text "value"
 invalid = zunpack utf8bytes "invalid"
 print asbool field invalid "ok"
 "#;
-    assert_eq!(execute(source), "true\nAin data compresses into bytes\nfalse\n");
+    assert_eq!(execute(source), "true\nBabel data compresses into bytes\nfalse\n");
 }
 #[test]
 fn serialization_type_checks() {
@@ -468,7 +468,7 @@ print result_error failed
 }
 #[test]
 fn tryread_handles_missing_files() {
-    let file = format!("/tmp/ain-nonexistent-{}-test", std::process::id());
+    let file = format!("/tmp/babel-nonexistent-{}-test", std::process::id());
     let source = format!(r#"result = tryread {file:?}
 print result_valid result
 print result_get result "fallback"
@@ -478,17 +478,17 @@ print result_get result "fallback"
 
 #[test]
 fn native_gui_event_pump_is_type_checked() {
-    assert!(compile(include_str!("../examples/gui_tick.ain")).is_ok());
+    assert!(compile(include_str!("../examples/gui_tick.babel")).is_ok());
     assert!(compile("guiupdate 4 \"layout\"").is_err());
     assert!(compile("print guitick \"forty\"").is_err());
 }
 #[test]
 fn native_gui_event_pump_is_linked_only_on_demand() {
-    let code = compile(include_str!("../examples/gui_tick.ain")).unwrap().rust;
-    assert!(code.contains("fn ain_guiupdate("));
-    assert!(code.contains("fn ain_guitick("));
+    let code = compile(include_str!("../examples/gui_tick.babel")).unwrap().rust;
+    assert!(code.contains("fn babel_guiupdate("));
+    assert!(code.contains("fn babel_guitick("));
     let unrelated = compile("print + 1 1").unwrap().rust;
-    assert!(!unrelated.contains("fn ain_guiupdate("));
+    assert!(!unrelated.contains("fn babel_guiupdate("));
 }
 
 #[test]
@@ -571,7 +571,7 @@ fn typed_maps_reject_wrong_key_value_and_fallback_types() {
 
 #[test]
 fn native_wav_synthesis_creates_valid_pcm() {
-    let path = std::env::temp_dir().join(format!("ain-wave-{}.wav", std::process::id()));
+    let path = std::env::temp_dir().join(format!("babel-wave-{}.wav", std::process::id()));
     let spec = r#"{"rate":8000,"notes":[{"hz":440,"ms":200,"volume":90},{"hz":0,"ms":100,"volume":0}]}"#;
     let source = format!("result = wavwrite {:?} json {:?}\nprint asbool field result \"ok\"\nprint asint field result \"value\"\n",
         path.to_str().unwrap(), spec);
@@ -588,7 +588,7 @@ fn native_wav_synthesis_creates_valid_pcm() {
 }
 #[test]
 fn wav_rejects_out_of_range_notes_without_writing() {
-    let path = std::env::temp_dir().join(format!("ain-bad-wave-{}.wav", std::process::id()));
+    let path = std::env::temp_dir().join(format!("babel-bad-wave-{}.wav", std::process::id()));
     let spec = r#"{"notes":[{"hz":999999,"ms":10}]}"#;
     let source = format!("result = wavwrite {:?} json {:?}\nprint asbool field result \"ok\"\n",
         path.to_str().unwrap(), spec);
@@ -597,7 +597,7 @@ fn wav_rejects_out_of_range_notes_without_writing() {
 }
 #[test]
 fn native_svg_export_escapes_untrusted_text() {
-    let path = std::env::temp_dir().join(format!("ain-svg-{}.svg", std::process::id()));
+    let path = std::env::temp_dir().join(format!("babel-svg-{}.svg", std::process::id()));
     let spec = r##"{"width":120,"height":90,"shapes":[{"kind":"rect","x":0,"y":2,"width":100,"height":80,"fill":"#00ccff"},{"kind":"text","x":4,"y":20,"value":"<hello & world>","fill":"black"}]}"##;
     let source = format!("result = svgwrite {:?} json {:?}\nprint asbool field result \"ok\"\nprint asint field result \"value\"\n",
         path.to_str().unwrap(), spec);
@@ -611,7 +611,7 @@ fn native_svg_export_escapes_untrusted_text() {
 }
 #[test]
 fn gltf_triangle_export_has_buffer_views_and_accessors() {
-    let path = std::env::temp_dir().join(format!("ain-mesh-{}.gltf", std::process::id()));
+    let path = std::env::temp_dir().join(format!("babel-mesh-{}.gltf", std::process::id()));
     let spec = r#"{"positions":[[0,0,0],[1,0,0],[0,1,0]],"indices":[0,1,2]}"#;
     let source = format!("result = gltfwrite {:?} json {:?}\nprint asbool field result \"ok\"\nprint asint field result \"value\"\n",
         path.to_str().unwrap(), spec);
@@ -628,7 +628,7 @@ fn gltf_triangle_export_has_buffer_views_and_accessors() {
 }
 #[test]
 fn media_exports_report_bad_geometry_and_type_errors() {
-    let path = std::env::temp_dir().join(format!("ain-invalid-mesh-{}.gltf", std::process::id()));
+    let path = std::env::temp_dir().join(format!("babel-invalid-mesh-{}.gltf", std::process::id()));
     let spec = r#"{"positions":[[0,0,0]],"indices":[0,1,0]}"#;
     let source = format!("result = gltfwrite {:?} json {:?}\nprint asbool field result \"ok\"\n",
         path.to_str().unwrap(), spec);
@@ -649,10 +649,10 @@ fn native_tcp_client_works_on_loopback_and_returns_recoverable_data() {
         let (mut stream, _) = listener.accept().unwrap();
         let mut request = String::new();
         stream.read_to_string(&mut request).unwrap();
-        assert_eq!(request, "Hello Ain");
+        assert_eq!(request, "Hello Babel");
         stream.write_all(b"PONG").unwrap();
     });
-    let source = format!("reply = tcprequest {:?} \"Hello Ain\"\nprint asbool field reply \"ok\"\nprint astext field reply \"value\"\n", addr.to_string());
+    let source = format!("reply = tcprequest {:?} \"Hello Babel\"\nprint asbool field reply \"ok\"\nprint astext field reply \"value\"\n", addr.to_string());
     assert_eq!(execute(&source), "true\nPONG\n");
     worker.join().unwrap();
 }
@@ -664,9 +664,9 @@ fn http_one_shot_server_responds_to_local_get() {
     let probe = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = probe.local_addr().unwrap().port();
     drop(probe);
-    let source = format!("result = httpserveonce {port} \"Hello from Ain\"\nprint asbool field result \"ok\"\nprint astext field field result \"value\" \"path\"\n");
+    let source = format!("result = httpserveonce {port} \"Hello from Babel\"\nprint asbool field result \"ok\"\nprint astext field field result \"value\" \"path\"\n");
     let generated = compile(&source).unwrap().rust;
-    let dir = std::env::temp_dir().join(format!("ain-http-server-{}-{}", std::process::id(),
+    let dir = std::env::temp_dir().join(format!("babel-http-server-{}-{}", std::process::id(),
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
     fs::create_dir_all(&dir).unwrap();
     let rs = dir.join("main.rs");
@@ -693,7 +693,7 @@ fn http_one_shot_server_responds_to_local_get() {
     let mut reply = String::new();
     stream.read_to_string(&mut reply).unwrap();
     assert!(reply.contains("HTTP/1.1 200 OK"), "{reply}");
-    assert!(reply.ends_with("Hello from Ain"), "{reply}");
+    assert!(reply.ends_with("Hello from Babel"), "{reply}");
     let output = child.wait_with_output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8(output.stdout).unwrap(), "true\n/test\n");
@@ -709,7 +709,7 @@ fn tcp_and_server_type_checks() {
 
 #[test]
 fn native_ffi_calls_typed_c_functions_with_0_to_2_arguments() {
-    let dir = std::env::temp_dir().join(format!("ain-ffi-{}-{}",
+    let dir = std::env::temp_dir().join(format!("babel-ffi-{}-{}",
         std::process::id(),
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
     fs::create_dir_all(&dir).unwrap();
@@ -737,7 +737,7 @@ print asbool field bad "ok"
 }
 #[test]
 fn ffi_missing_library_and_bad_type_returns_errors() {
-    let source = r#"call = ffi0 "/nonexistent/ain-library-does-not-exist.so" "answer"
+    let source = r#"call = ffi0 "/nonexistent/babel-library-does-not-exist.so" "answer"
 print asbool field call "ok"
 "#;
     assert_eq!(execute(source), "false\n");
@@ -748,9 +748,9 @@ print asbool field call "ok"
 
 #[test]
 fn native_toml_nested_tables_and_arrays_roundtrip() {
-    let toml = "title = \"Ain #1\"\nactive = true\nnums = [1, 2, 3]\n\n[server]\nport = 8080\nhost = \"localhost\"\n\n[server.auth]\nenabled = false\n";
+    let toml = "title = \"Babel #1\"\nactive = true\nnums = [1, 2, 3]\n\n[server]\nport = 8080\nhost = \"localhost\"\n\n[server.auth]\nenabled = false\n";
     let source = format!("doc = tomlparse {:?}\nprint asbool field doc \"ok\"\nvalue = field doc \"value\"\nprint astext field value \"title\"\nprint asint field field value \"server\" \"port\"\nprint encode field value \"nums\"\nencoded = tomlwrite value\nprint asbool field encoded \"ok\"\nprint asbool field tomlparse astext field encoded \"value\" \"ok\"\n",toml);
-    assert_eq!(execute(&source), "true\nAin #1\n8080\n[1,2,3]\ntrue\ntrue\n");
+    assert_eq!(execute(&source), "true\nBabel #1\n8080\n[1,2,3]\ntrue\ntrue\n");
 }
 #[test]
 fn native_toml_duplicate_and_malformed_values_are_recoverable() {
@@ -782,7 +782,7 @@ fn toml_builtin_types_rejected_by_compiler() {
 
 #[test]
 fn formatter_is_idempotent_and_preserves_comments() {
-    use ain_compiler::format_source;
+    use babel_compiler::format_source;
     let source = "  # standalone comment  \n  join   a   b = concat a b   # combine\nprint  join \"a # not comment\" \"quote \\\" and \\t tab\"  # inline\n\n";
     let formatted = format_source(source).unwrap();
     assert_eq!(formatted,
@@ -792,21 +792,21 @@ fn formatter_is_idempotent_and_preserves_comments() {
 }
 #[test]
 fn formatter_does_not_change_generated_program_results() {
-    use ain_compiler::format_source;
+    use babel_compiler::format_source;
     let source = "double x = * x 2\nscores = mapset  mapone \"z\"  8 \"a\"  3\nprint mapat  scores  \"z\"  0\nprint double 21\n";
     let formatted = format_source(source).unwrap();
     assert_eq!(execute(source), execute(&formatted));
 }
 #[test]
 fn formatter_cli_checks_and_writes_canonical_output() {
-    let dir = std::env::temp_dir().join(format!("ain-fmt-{}-{}",
+    let dir = std::env::temp_dir().join(format!("babel-fmt-{}-{}",
         std::process::id(),
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
     fs::create_dir_all(&dir).unwrap();
-    let src = dir.join("bad.ain");
-    let output = dir.join("good.ain");
+    let src = dir.join("bad.babel");
+    let output = dir.join("good.babel");
     fs::write(&src, "  print   +  1   2  \n").unwrap();
-    let bin = env!("CARGO_BIN_EXE_ainc");
+    let bin = env!("CARGO_BIN_EXE_babelc");
     let not_formatted = Command::new(bin).arg("fmt-check").arg(&src).output().unwrap();
     assert!(!not_formatted.status.success());
     let formatted = Command::new(bin).arg("fmt").arg(&src)
@@ -819,7 +819,7 @@ fn formatter_cli_checks_and_writes_canonical_output() {
 }
 #[test]
 fn formatter_rejects_invalid_source() {
-    use ain_compiler::format_source;
+    use babel_compiler::format_source;
     assert!(format_source("print + 1\n").is_err());
     assert!(format_source("print \"unterminated").is_err());
 }
@@ -849,7 +849,7 @@ fn tuple_types_are_inferred_and_wrong_types_rejected() {
 
 #[test]
 fn rich_native_gui_widgets_are_included_and_compile() {
-    let generated = compile(include_str!("../examples/gui_rich.ain")).unwrap().rust;
+    let generated = compile(include_str!("../examples/gui_rich.babel")).unwrap().rust;
     assert!(generated.contains("fn gtk_picture_new_for_filename("));
     assert!(generated.contains("fn gtk_progress_bar_set_fraction("));
     assert!(generated.contains("fn gtk_separator_new("));
@@ -860,7 +860,7 @@ fn rich_native_gui_widgets_are_included_and_compile() {
 
 #[test]
 fn recoverable_directory_operations_and_sorted_listing() {
-    let dir = std::env::temp_dir().join(format!("ain-fs-native-{}-{}",
+    let dir = std::env::temp_dir().join(format!("babel-fs-native-{}-{}",
         std::process::id(),
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
     let nested = dir.join("inner");
@@ -881,13 +881,13 @@ print asbool field workingdir _ "ok"
 }
 #[test]
 fn process_arguments_are_arrays_not_shell_commands() {
-    let code = r#"print_args = push push array _ boxstr "Hello %s" boxstr "Ain"
+    let code = r#"print_args = push push array _ boxstr "Hello %s" boxstr "Babel"
 reply = processrun "printf" print_args
 print asbool field reply "ok"
 print asint field field reply "value" "code"
 print astext field field reply "value" "stdout"
 "#;
-    assert_eq!(execute(code),"true\n0\nHello Ain\n");
+    assert_eq!(execute(code),"true\n0\nHello Babel\n");
     let invalid = r#"print_args = push array _ boxint 12
 reply = processrun "printf" print_args
 print asbool field reply "ok"
@@ -906,12 +906,12 @@ fn extended_filesystem_types_are_checked() {
 
 #[test]
 fn check_json_reports_stable_error_categories_and_hints() {
-    let dir=std::env::temp_dir().join(format!("ain-ai-diag-{}-{}",
+    let dir=std::env::temp_dir().join(format!("babel-ai-diag-{}-{}",
         std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
     fs::create_dir_all(&dir).unwrap();
-    let file=dir.join("bad.ain");
+    let file=dir.join("bad.babel");
     fs::write(&file,"print + true 3\n").unwrap();
-    let bin=env!("CARGO_BIN_EXE_ainc");
+    let bin=env!("CARGO_BIN_EXE_babelc");
     let output=Command::new(bin).arg("check-json").arg(&file).output().unwrap();
     assert!(!output.status.success());
     let json=String::from_utf8(output.stdout).unwrap();
@@ -927,20 +927,20 @@ fn check_json_reports_stable_error_categories_and_hints() {
 }
 #[test]
 fn checked_run_defaults_to_denied_builtins_and_accepts_explicit_grants() {
-    let dir=std::env::temp_dir().join(format!("ain-checked-cli-{}-{}",
+    let dir=std::env::temp_dir().join(format!("babel-checked-cli-{}-{}",
         std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
     fs::create_dir_all(&dir).unwrap();
-    let file=dir.join("program.ain");
+    let file=dir.join("program.babel");
     let input=dir.join("input.txt");
     fs::write(&input,"restricted read works").unwrap();
     fs::write(&file,format!("print fsread {:?}\n",input.to_string_lossy())).unwrap();
-    let bin=env!("CARGO_BIN_EXE_ainc");
+    let bin=env!("CARGO_BIN_EXE_babelc");
     let denied=Command::new(bin).arg("run-checked").arg(&file)
-        .env_remove("AIN_PERMISSIONS").output().unwrap();
+        .env_remove("BABEL_PERMISSIONS").output().unwrap();
     assert!(!denied.status.success(),"checked run must default to deny");
     assert!(String::from_utf8_lossy(&denied.stderr).contains("capability denied"));
     let allowed=Command::new(bin).arg("run-checked").arg(&file)
-        .env("AIN_PERMISSIONS","read").output().unwrap();
+        .env("BABEL_PERMISSIONS","read").output().unwrap();
     assert!(allowed.status.success(),"{}",String::from_utf8_lossy(&allowed.stderr));
     assert_eq!(String::from_utf8(allowed.stdout).unwrap(),"restricted read works\n");
     fs::remove_dir_all(dir).unwrap();
@@ -980,14 +980,14 @@ fn extra_functional_operations_reject_ill_typed_arguments() {
 #[test]
 fn opencode_free_provider_parses_json_lines_and_preserves_model() {
     use std::os::unix::fs::PermissionsExt;
-    let dir = std::env::temp_dir().join(format!("ain-opencode-test-{}-{}",
+    let dir = std::env::temp_dir().join(format!("babel-opencode-test-{}-{}",
         std::process::id(),
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
     fs::create_dir_all(&dir).unwrap();
     let script = dir.join("opencode-mock");
     let args = dir.join("args.txt");
     fs::write(&script, r#"#!/bin/sh
-printf '%s\n' "$@" > "$AIN_OPENCODE_TEST_ARGS"
+printf '%s\n' "$@" > "$BABEL_OPENCODE_TEST_ARGS"
 echo '{"type":"step_start","part":{"type":"step-start"}}'
 echo '{"type":"text","part":{"type":"text","text":"Hello "}}'
 echo '{"type":"text","part":{"type":"text","text":"Ainex"}}'
@@ -1003,8 +1003,8 @@ echo '{"type":"step_finish","part":{"type":"step-finish"}}'
     let built = Command::new("rustc").args(["--edition=2021","-O"])
         .arg(&rs).arg("-o").arg(&exe).output().unwrap();
     assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
-    let output = Command::new(&exe).env("AIN_OPENCODE_BIN", &script)
-        .env("AIN_OPENCODE_TEST_ARGS",&args).output().unwrap();
+    let output = Command::new(&exe).env("BABEL_OPENCODE_BIN", &script)
+        .env("BABEL_OPENCODE_TEST_ARGS",&args).output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8(output.stdout).unwrap(),"Hello Ainex\n");
     let argv = fs::read_to_string(&args).unwrap();
@@ -1018,15 +1018,15 @@ echo '{"type":"step_finish","part":{"type":"step-finish"}}'
 fn opencode_provider_rejects_invalid_model_and_missing_executable() {
     let source = "print chat \"opencode\" \"bad model with spaces\" \"Hello\"\n";
     assert_eq!(execute(source), "Provider error: Invalid model identifier\n");
-    let dir = std::env::temp_dir().join(format!("ain-opencode-notfound-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("babel-opencode-notfound-{}", std::process::id()));
     let rs = dir.with_extension("rs");
     let exe = dir.with_extension("exe");
     fs::write(&rs,compile("print chat \"opencode\" \"\" \"Hello\"\n").unwrap().rust).unwrap();
     let built = Command::new("rustc").args(["--edition=2021","-O"])
         .arg(&rs).arg("-o").arg(&exe).output().unwrap();
     assert!(built.status.success(),"{}",String::from_utf8_lossy(&built.stderr));
-    let output=Command::new(&exe).env("AIN_OPENCODE_BIN",
-        "/nonexistent/ain-opencode-cli-binary").output().unwrap();
+    let output=Command::new(&exe).env("BABEL_OPENCODE_BIN",
+        "/nonexistent/babel-opencode-cli-binary").output().unwrap();
     assert!(output.status.success());
     assert!(String::from_utf8_lossy(&output.stdout).contains("Cannot launch OpenCode CLI"));
     let _=fs::remove_file(rs);
@@ -1036,11 +1036,11 @@ fn opencode_provider_rejects_invalid_model_and_missing_executable() {
 #[test]
 fn browser_only_program_links_json_runtime_with_opencode_provider() {
     let code = compile("print browser \"selftest\" \"\"\n").unwrap().rust;
-    assert!(code.contains("enum AinData"), "browser includes its dependent AI/JSON runtime");
-    assert!(code.contains("fn ain_json_parse("));
-    assert!(code.contains("fn ain_ai_opencode("));
+    assert!(code.contains("enum BabelData"), "browser includes its dependent AI/JSON runtime");
+    assert!(code.contains("fn babel_json_parse("));
+    assert!(code.contains("fn babel_ai_opencode("));
     let no_browser = compile("print 42\n").unwrap().rust;
-    assert!(!no_browser.contains("enum AinData"), "tiny programs do not link JSON runtime");
+    assert!(!no_browser.contains("enum BabelData"), "tiny programs do not link JSON runtime");
 }
 
 #[test]
@@ -1061,7 +1061,7 @@ eof = readline _
 print asbool field eof "ok"
 print astext field eof "error"
 "#).unwrap().rust;
-    let dir = std::env::temp_dir().join(format!("ain-cli-test-{}-{}",
+    let dir = std::env::temp_dir().join(format!("babel-cli-test-{}-{}",
         std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
     fs::create_dir_all(&dir).unwrap();
     let source = dir.join("main.rs");

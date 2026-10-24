@@ -1,6 +1,6 @@
 # Inferred parametric functions
 
-Ain supports **inferred rank-1 parametric function polymorphism** through the
+Babel supports **inferred rank-1 parametric function polymorphism** through the
 Rust code-generation backend. No `fn` keyword, annotations, or type parameter
 punctuation is required.
 
