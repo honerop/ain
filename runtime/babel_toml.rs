@@ -2,7 +2,7 @@
 // Supports bare dotted keys, tables, strings, numbers, bools and nested arrays.
 // Unsupported constructs (dates, array-of-tables, multiline strings, inline
 // tables and quoted keys) return recoverable errors rather than guessed data.
-fn ain_toml_key(key: &str) -> Result<Vec<String>, String> {
+fn babel_toml_key(key: &str) -> Result<Vec<String>, String> {
     let parts: Vec<_> = key.split('.').map(str::trim).collect();
     if parts.is_empty() || parts.iter().any(|p| p.is_empty() || p.len() > 128 ||
         !p.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')) {
@@ -10,7 +10,7 @@ fn ain_toml_key(key: &str) -> Result<Vec<String>, String> {
     }
     Ok(parts.iter().map(|s| (*s).into()).collect())
 }
-fn ain_toml_uncomment(line: &str) -> String {
+fn babel_toml_uncomment(line: &str) -> String {
     let mut result = String::new();
     let mut quote = None;
     let mut escaped = false;
@@ -28,13 +28,13 @@ fn ain_toml_uncomment(line: &str) -> String {
     }
     result.trim().into()
 }
-fn ain_toml_value(input: &str, depth: usize) -> Result<AinData, String> {
+fn babel_toml_value(input: &str, depth: usize) -> Result<BabelData, String> {
     if depth > 64 { return Err("TOML array nesting too deep".into()); }
     let input = input.trim();
     if input.is_empty() { return Err("Empty TOML value".into()); }
     if input.starts_with('"') {
-        return match ain_json_parse(input.to_string())? {
-            AinData::Text(t) => Ok(AinData::Text(t)),
+        return match babel_json_parse(input.to_string())? {
+            BabelData::Text(t) => Ok(BabelData::Text(t)),
             _ => Err("TOML string expected".into())
         };
     }
@@ -43,7 +43,7 @@ fn ain_toml_value(input: &str, depth: usize) -> Result<AinData, String> {
             input[1..input.len()-1].contains('\'') {
             return Err("Invalid literal TOML string".into());
         }
-        return Ok(AinData::Text(input[1..input.len()-1].into()));
+        return Ok(BabelData::Text(input[1..input.len()-1].into()));
     }
     if input.starts_with('[') {
         if !input.ends_with(']') { return Err("Unterminated TOML array".into()); }
@@ -66,18 +66,18 @@ fn ain_toml_value(input: &str, depth: usize) -> Result<AinData, String> {
             } else if ch == ',' && nested == 0 {
                 let value = inside[start..i].trim();
                 if value.is_empty() { return Err("Empty TOML array element".into()); }
-                values.push(ain_toml_value(value, depth+1)?);
+                values.push(babel_toml_value(value, depth+1)?);
                 if values.len() > 100_000 { return Err("Too many TOML array values".into()); }
                 start = i + 1;
             }
         }
         if quote.is_some() || nested != 0 { return Err("Unterminated TOML array element".into()); }
         let last = inside[start..].trim();
-        if !last.is_empty() { values.push(ain_toml_value(last, depth+1)?); }
-        return Ok(AinData::List(values));
+        if !last.is_empty() { values.push(babel_toml_value(last, depth+1)?); }
+        return Ok(BabelData::List(values));
     }
-    if input == "true" { return Ok(AinData::Bool(true)); }
-    if input == "false" { return Ok(AinData::Bool(false)); }
+    if input == "true" { return Ok(BabelData::Bool(true)); }
+    if input == "false" { return Ok(BabelData::Bool(false)); }
     let numeric = input.strip_prefix('+').unwrap_or(input);
     if numeric.chars().all(|c| c.is_ascii_digit() || c == '.' || c == 'e' ||
         c == 'E' || c == '+' || c == '-' || c == '_') {
@@ -89,16 +89,16 @@ fn ain_toml_value(input: &str, depth: usize) -> Result<AinData, String> {
             }
         }
         let cleaned = numeric.replace('_',"");
-        if let Ok(value) = ain_json_parse(cleaned.clone()) {
-            if let AinData::Number(_) = value {
-                return Ok(AinData::Number(cleaned));
+        if let Ok(value) = babel_json_parse(cleaned.clone()) {
+            if let BabelData::Number(_) = value {
+                return Ok(BabelData::Number(cleaned));
             }
         }
     }
     Err("Unsupported or invalid TOML value".into())
 }
-fn ain_toml_insert(values: &mut std::collections::BTreeMap<String,AinData>,
-                  path: &[String], value: AinData) -> Result<(), String> {
+fn babel_toml_insert(values: &mut std::collections::BTreeMap<String,BabelData>,
+                  path: &[String], value: BabelData) -> Result<(), String> {
     let (head, tail) = path.split_first().ok_or("Empty TOML key")?;
     if tail.is_empty() {
         if values.contains_key(head) { return Err(format!("Duplicate TOML key: {head}")); }
@@ -106,37 +106,37 @@ fn ain_toml_insert(values: &mut std::collections::BTreeMap<String,AinData>,
         return Ok(());
     }
     let next = values.entry(head.clone()).or_insert_with(
-        || AinData::Object(std::collections::BTreeMap::new()));
-    let AinData::Object(nested) = next else {
+        || BabelData::Object(std::collections::BTreeMap::new()));
+    let BabelData::Object(nested) = next else {
         return Err("TOML table conflicts with a scalar key".into());
     };
-    ain_toml_insert(nested, tail, value)
+    babel_toml_insert(nested, tail, value)
 }
-fn ain_toml_parse(input: String) -> Result<AinData, String> {
+fn babel_toml_parse(input: String) -> Result<BabelData, String> {
     if input.len() > 4 * 1024 * 1024 { return Err("TOML input exceeds 4 MiB".into()); }
     let mut root = std::collections::BTreeMap::new();
     let mut section: Vec<String> = Vec::new();
     let mut seen_tables = std::collections::BTreeSet::<String>::new();
     for (idx,line) in input.lines().enumerate() {
-        let line = ain_toml_uncomment(line);
+        let line = babel_toml_uncomment(line);
         if line.is_empty() { continue; }
         let parsed = (|| -> Result<(),String> {
             if line.starts_with('[') {
                 if !line.ends_with(']') || line.starts_with("[[") {
                     return Err("Unsupported TOML table declaration".into());
                 }
-                section = ain_toml_key(&line[1..line.len()-1])?;
+                section = babel_toml_key(&line[1..line.len()-1])?;
                 if !seen_tables.insert(section.join(".")) {
                     return Err("Duplicate TOML table declaration".into());
                 }
                 let mut path = section.clone();
-                path.push("__ain_internal_table_marker__".into());
+                path.push("__babel_internal_table_marker__".into());
                 // Ensure table shape exists, but don't create an internal key.
                 let mut current = &mut root;
                 for key in section.iter() {
                     let next = current.entry(key.clone()).or_insert_with(
-                        || AinData::Object(std::collections::BTreeMap::new()));
-                    let AinData::Object(map) = next else {
+                        || BabelData::Object(std::collections::BTreeMap::new()));
+                    let BabelData::Object(map) = next else {
                         return Err("TOML table conflicts with scalar key".into());
                     };
                     current = map;
@@ -147,61 +147,61 @@ fn ain_toml_parse(input: String) -> Result<AinData, String> {
                 return Err("Expected TOML key = value".into());
             };
             let mut path = section.clone();
-            path.extend(ain_toml_key(key.trim())?);
-            ain_toml_insert(&mut root, &path, ain_toml_value(value, 0)?)
+            path.extend(babel_toml_key(key.trim())?);
+            babel_toml_insert(&mut root, &path, babel_toml_value(value, 0)?)
         })();
         parsed.map_err(|e| format!("TOML line {}: {e}", idx+1))?;
     }
-    Ok(AinData::Object(root))
+    Ok(BabelData::Object(root))
 }
-fn ain_tomlparse(input: String) -> AinData {
-    match ain_toml_parse(input) {
-        Ok(value) => ain_result(true,value,""),
-        Err(e) => ain_result(false,AinData::Null,&e),
+fn babel_tomlparse(input: String) -> BabelData {
+    match babel_toml_parse(input) {
+        Ok(value) => babel_result(true,value,""),
+        Err(e) => babel_result(false,BabelData::Null,&e),
     }
 }
-fn ain_toml_scalar(value: &AinData) -> Result<String,String> {
+fn babel_toml_scalar(value: &BabelData) -> Result<String,String> {
     match value {
-        AinData::Text(t) => Ok(ain_json_quote(t)),
-        AinData::Bool(v) => Ok(v.to_string()),
-        AinData::Number(n) => {
-            let numeric = ain_toml_value(n,0)?;
-            if matches!(numeric,AinData::Number(_)) { Ok(n.clone()) }
+        BabelData::Text(t) => Ok(babel_json_quote(t)),
+        BabelData::Bool(v) => Ok(v.to_string()),
+        BabelData::Number(n) => {
+            let numeric = babel_toml_value(n,0)?;
+            if matches!(numeric,BabelData::Number(_)) { Ok(n.clone()) }
             else { Err("Invalid TOML numeric value".into()) }
         },
-        AinData::List(items) => {
+        BabelData::List(items) => {
             let mut encoded = Vec::new();
-            for v in items { encoded.push(ain_toml_scalar(v)?); }
+            for v in items { encoded.push(babel_toml_scalar(v)?); }
             Ok(format!("[{}]", encoded.join(", ")))
         },
         _ => Err("TOML cannot serialize null or inline records".into())
     }
 }
-fn ain_toml_sections(path: &[String], fields: &std::collections::BTreeMap<String,AinData>,
+fn babel_toml_sections(path: &[String], fields: &std::collections::BTreeMap<String,BabelData>,
                      out: &mut String) -> Result<(),String> {
     if !path.is_empty() { out.push_str(&format!("[{}]\n",path.join("."))); }
     for (key,value) in fields {
-        ain_toml_key(key)?;
-        if !matches!(value,AinData::Object(_)) {
-            out.push_str(&format!("{} = {}\n",key,ain_toml_scalar(value)?));
+        babel_toml_key(key)?;
+        if !matches!(value,BabelData::Object(_)) {
+            out.push_str(&format!("{} = {}\n",key,babel_toml_scalar(value)?));
         }
     }
     if !path.is_empty() { out.push('\n'); }
     for (key,value) in fields {
-        if let AinData::Object(nested) = value {
+        if let BabelData::Object(nested) = value {
             let mut next = path.to_vec(); next.push(key.clone());
-            ain_toml_sections(&next,nested,out)?;
+            babel_toml_sections(&next,nested,out)?;
         }
     }
     Ok(())
 }
-fn ain_tomlwrite(data: AinData) -> AinData {
-    let run = (|| -> Result<AinData,String> {
-        let AinData::Object(root) = data else { return Err("TOML root must be a record".into()); };
+fn babel_tomlwrite(data: BabelData) -> BabelData {
+    let run = (|| -> Result<BabelData,String> {
+        let BabelData::Object(root) = data else { return Err("TOML root must be a record".into()); };
         let mut text = String::new();
-        ain_toml_sections(&[],&root,&mut text)?;
+        babel_toml_sections(&[],&root,&mut text)?;
         if text.len() > 4 * 1024 * 1024 { return Err("TOML output exceeds 4 MiB".into()); }
-        Ok(AinData::Text(text))
+        Ok(BabelData::Text(text))
     })();
-    match run { Ok(v) => ain_result(true,v,""), Err(e) => ain_result(false,AinData::Null,&e) }
+    match run { Ok(v) => babel_result(true,v,""), Err(e) => babel_result(false,BabelData::Null,&e) }
 }

@@ -1,4 +1,4 @@
-name: Build ainc binaries
+name: Build babelc binaries
 
 # Each update to main gets downloadable binaries. PRs validate portability.
 on:
@@ -55,10 +55,10 @@ jobs:
       run:
         shell: bash
     env:
-      AIN_PLATFORM: ${{ matrix.platform }}
-      AIN_TARGET: ${{ matrix.target }}
-      AIN_EXTENSION: ${{ matrix.extension }}
-      AIN_FORMAT: ${{ matrix.package_format }}
+      BABEL_PLATFORM: ${{ matrix.platform }}
+      BABEL_TARGET: ${{ matrix.target }}
+      BABEL_EXTENSION: ${{ matrix.extension }}
+      BABEL_FORMAT: ${{ matrix.package_format }}
     steps:
       - name: Check out the source
         uses: actions/checkout@v4
@@ -75,20 +75,20 @@ jobs:
           sudo apt-get install -y musl-tools
 
       - name: Build release compiler
-        run: cargo build --release --target "$AIN_TARGET" --bin ainc
+        run: cargo build --release --target "$BABEL_TARGET" --bin babelc
 
       - name: Verify the executable
         run: |
-          bin="target/$AIN_TARGET/release/ainc$AIN_EXTENSION"
+          bin="target/$BABEL_TARGET/release/babelc$BABEL_EXTENSION"
           test -f "$bin"
           "./$bin" --version
-          printf 'print 42\n' > binary-smoke.ain
-          "./$bin" check binary-smoke.ain
+          printf 'print 42\n' > binary-smoke.babel
+          "./$bin" check binary-smoke.babel
 
       - name: Verify Linux binaries have no dynamic loader
         if: runner.os == 'Linux'
         run: |
-          bin="target/$AIN_TARGET/release/ainc"
+          bin="target/$BABEL_TARGET/release/babelc"
           file "$bin"
           if readelf -l "$bin" | grep -q INTERP; then
             echo "Linux executable unexpectedly requires a dynamic interpreter"
@@ -104,15 +104,15 @@ jobs:
           import tarfile
           import zipfile
 
-          platform = os.environ["AIN_PLATFORM"]
-          target = os.environ["AIN_TARGET"]
-          extension = os.environ["AIN_EXTENSION"]
-          package_format = os.environ["AIN_FORMAT"]
-          binary = Path("target") / target / "release" / ("ainc" + extension)
+          platform = os.environ["BABEL_PLATFORM"]
+          target = os.environ["BABEL_TARGET"]
+          extension = os.environ["BABEL_EXTENSION"]
+          package_format = os.environ["BABEL_FORMAT"]
+          binary = Path("target") / target / "release" / ("babelc" + extension)
           assert binary.is_file(), f"missing executable: {binary}"
           output = Path("dist")
           output.mkdir(exist_ok=True)
-          root = "ainc-" + platform
+          root = "babelc-" + platform
           archive = output / (root + "." + package_format)
           items = [(binary, root + "/" + binary.name),
                    (Path("LICENSE"), root + "/LICENSE"),
@@ -134,7 +134,7 @@ jobs:
       - name: Upload downloadable binary
         uses: actions/upload-artifact@v4
         with:
-          name: ainc-${{ matrix.platform }}
+          name: babelc-${{ matrix.platform }}
           path: dist/*
           if-no-files-found: error
           retention-days: 30
@@ -179,7 +179,7 @@ jobs:
         if: steps.version.outputs.exists == 'false'
         uses: actions/download-artifact@v4
         with:
-          pattern: ainc-*
+          pattern: babelc-*
           path: dist
           merge-multiple: true
 
@@ -205,7 +205,7 @@ jobs:
             dist/*.tar.gz dist/*.zip dist/*.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Ain $TAG (experimental)" \
+            --title "Babel $TAG (experimental)" \
             --notes-file "$notes" \
             --prerelease
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets

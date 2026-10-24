@@ -1,6 +1,6 @@
-# Ain token comparison benchmark
+# Babel token comparison benchmark
 
-`ainc tokens` uses the real **o200k_base** BPE tokenizer (via Rust's optional
+`babelc tokens` uses the real **o200k_base** BPE tokenizer (via Rust's optional
 `tiktoken` crate). This reports source-token counts, not source bytes disguised
 as tokens. The tokenizer is explicitly named because different model families
 can split code differently.
@@ -12,12 +12,12 @@ cargo run --features token-bench -- tokens benchmarks/tokens/*/*
 cargo run --features token-bench -- tokens benchmarks/tokens/*/* --json
 ```
 
-Five deliberately small, equivalent-output tasks compare Ain against Python,
+Five deliberately small, equivalent-output tasks compare Babel against Python,
 TypeScript, and Rust: arithmetic, factorial, string formatting, list mapping,
 and polymorphic identity. Fixtures contain no comments. Results use the
 **same tokenizer** on all languages. The output includes per-file bytes/tokens
-and per-task Ain percentage savings against each other language. Negative
-savings indicate Ain used more tokens.
+and per-task Babel percentage savings against each other language. Negative
+savings indicate Babel used more tokens.
 
 This is a *microbenchmark*. Results depend on task choice, code formatting,
 compiler/library availability, tokenizer, and how idiomatic each solution is.
@@ -28,15 +28,15 @@ paired, correctness-checked task suite.
 
 The default `cargo build` has no tokenizer dependency; only
 `cargo build --features token-bench` downloads the optional crate. The native
-`ainc bench` command remains available without this feature and benchmarks
+`babelc bench` command remains available without this feature and benchmarks
 compile/run time rather than text tokenization.
 
 ## Initial measured results (18 October 2026)
 
-Executed in [GitHub Actions Linux CI, run 39108070902](https://github.com/honerop/ain/actions/runs/39108070902)
+Executed in [GitHub Actions Linux CI, run 39108070902](https://github.com/honerop/babel/actions/runs/39108070902)
 using the exact fixture sources in `benchmarks/tokens/` and `o200k_base`:
 
-| Task | Ain | Python | TypeScript | Rust |
+| Task | Babel | Python | TypeScript | Rust |
 |---|---:|---:|---:|---:|
 | Arithmetic | 16 | 20 | 24 | 31 |
 | Factorial | 23 | 28 | 33 | 43 |
@@ -45,14 +45,14 @@ using the exact fixture sources in `benchmarks/tokens/` and `o200k_base`:
 | String transform | 17 | 20 | 27 | 32 |
 | **Total** | **108** | **126** | **150** | **192** |
 
-Across these five tasks: Ain's source code used **14.3% fewer tokens** than
+Across these five tasks: Babel's source code used **14.3% fewer tokens** than
 Python, **28.0% fewer** than TypeScript, and **43.8% fewer** than Rust.
 The list-mapping example ties Python rather than beating it. These totals
 describe only this very small corpus and are not a general language ranking.
 They also do not demonstrate total model-token savings on generated programs.
 
 The numbers above are copied from a successful CI invocation of
-`ainc tokens --json`; for future code or tokenizer changes, rerun the
+`babelc tokens --json`; for future code or tokenizer changes, rerun the
 benchmark rather than trusting historical totals.
 
 ## Published machine-readable snapshot
@@ -72,19 +72,19 @@ generation performance**, and it does not include model API token usage.
 
 ## Compact list syntax (18 October 2026)
 
-The initial five-task baseline above used 33 Ain tokens for list mapping.
+The initial five-task baseline above used 33 Babel tokens for list mapping.
 The compiler now supports readable list literals, optional short list
 operation aliases, and unquoted callback names. The list benchmark retains
 the same `xs` binding and result but now uses:
 
-```ain
+```babel
 inc x = + x 1
 xs = [1 2 3]
 print ln lm inc xs
 ```
 
 Measured with **the same `o200k_base` tokenizer**: 23 rather than 33 tokens
-for the list task (30.3% fewer). The five-task Ain total decreases from
+for the list task (30.3% fewer). The five-task Babel total decreases from
 108 to **98 tokens**, against unchanged Python 126, TypeScript 150, Rust
 192. On this limited corpus the updated source-token savings are **22.2%**
 versus Python, **34.7%** versus TypeScript and **49.0%** versus Rust.

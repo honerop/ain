@@ -1,6 +1,6 @@
-# Embedded SQLite in Ain
+# Embedded SQLite in Babel
 
-Ain's Rust backend provides two native SQLite operations:
+Babel's Rust backend provides two native SQLite operations:
 
 - `sqlexec DATABASE_PATH SQL PARAMETERS`: execute one prepared statement.
 - `sqlquery DATABASE_PATH SQL PARAMETERS`: execute one prepared statement and return rows.
@@ -30,9 +30,9 @@ pooling, SQLite backup, and SQL schemas are **not yet supported**. These are
 native SQLite queries, not a complete database abstraction layer.
 
 The builtin requires the system SQLite3 native library at link time and
-database permission when `AIN_RESTRICTED=1`. This is a builtin permission
+database permission when `BABEL_RESTRICTED=1`. This is a builtin permission
 check, not filesystem or OS sandbox isolation. Programs that don't call
 SQLite don't link the SQLite library.
 
-Tests compile native Ain programs and exercise prepared statements, an SQL
+Tests compile native Babel programs and exercise prepared statements, an SQL
 injection-shaped value, persistence, errors, and statement validation.

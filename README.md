@@ -1,51 +1,51 @@
-# AIN
+# Babel
 
 **An experimental, general-purpose programming language designed exclusively for AI-generated code, with an intentionally extensive built-in library.**
 
-[![CI](https://github.com/honerop/ain/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/honerop/ain/actions/workflows/ci.yml)
+[![CI](https://github.com/honerop/babel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/honerop/babel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/implementation-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Status](https://img.shields.io/badge/status-experimental-yellow.svg)](#project-status)
 
-AIN explores a simple question: **what would a general-purpose programming language look like if it were designed from the ground up for code written by AI models rather than humans?** AI-generated source code is AIN's **only intended use case**. General-purpose refers to the kinds of programs it can express, not to human authorship.
+Babel explores a simple question: **what would a general-purpose programming language look like if it were designed from the ground up for code written by AI models rather than humans?** AI-generated source code is Babel's **only intended use case**. General-purpose refers to the kinds of programs it can express, not to human authorship.
 
 The source language uses compact, fixed-arity prefix expressions, automatic primitive type inference, and very little punctuation. The compiler experiments with native-code generation, a custom typed intermediate representation called **AIR**, and self-hosting.
 
 > [!IMPORTANT]
-> **Experimental / pre-alpha.** AIN is a research prototype, not a production-ready language. The LLVM backend supports only a subset of the language, compiler correctness and performance have not been comprehensively benchmarked, and CI is not currently green. Please do not deploy untrusted AIN programs.
+> **Experimental / pre-alpha.** Babel is a research prototype, not a production-ready language. The LLVM backend supports only a subset of the language, compiler correctness and performance have not been comprehensively benchmarked, and CI is not currently green. Please do not deploy untrusted Babel programs.
 
 ## Design philosophy: batteries included (even if that means bloat)
 
-AIN aims to be **general-purpose in capability but AI-only in authorship**: AI models should be able to generate ordinary applications, systems tools, automation, and other kinds of software in AIN. It is not a DSL limited to building AI agents; it is a language **for AI to write**.
+Babel aims to be **general-purpose in capability but AI-only in authorship**: AI models should be able to generate ordinary applications, systems tools, automation, and other kinds of software in Babel. It is not a DSL limited to building AI agents; it is a language **for AI to write**.
 
-The long-term goal is a **large, convenient standard library** with many common operations available directly: text and data handling, files, processes, networking, concurrency, and other everyday building blocks. AIN deliberately favors having these capabilities built in over making every program assemble a stack of dependencies. You could reasonably call that *bloated*. The tradeoff is intentional.
+The long-term goal is a **large, convenient standard library** with many common operations available directly: text and data handling, files, processes, networking, concurrency, and other everyday building blocks. Babel deliberately favors having these capabilities built in over making every program assemble a stack of dependencies. You could reasonably call that *bloated*. The tradeoff is intentional.
 
 - **Optimized for generated code:** short, predictable syntax and ready-to-use operations reduce the tokens, imports, and scaffolding AI models need to generate.
 - **General-purpose output:** AI models can generate programs in many domains, not merely chatbots or agents.
 - **Intentionally extensive built-ins:** prefer a broad standard library even at the cost of some bloat, while keeping the compiler, runtime, and output binaries modular where practical.
 - **Machine-friendly semantics:** deterministic, explicit behavior matters more than human-oriented syntax conventions, without weakening type checks or safety.
 
-**Current reality:** AIN is still pre-alpha. Its built-in operations are limited, and many capabilities described here are **goals, not implemented features**.
+**Current reality:** Babel is still pre-alpha. Its built-in operations are limited, and many capabilities described here are **goals, not implemented features**.
 
 ## Real LLM code evaluation (OpenAI-compatible API)
 
 `tools/llm_bench.py` can generate source with any OpenAI-compatible Chat Completions
 API, or evaluate manually supplied responses. Set a base URL, model ID and an API
 key environment variable; no OpenCode or third-party Python SDK is required.
-It compares Ain, Python, Rust and TypeScript using real compile/run tests and
+It compares Babel, Python, Rust and TypeScript using real compile/run tests and
 provider-reported tokens. See [LLM benchmark setup](docs/llm-benchmark.md).
 Generated source must be executed in a properly isolated environment.
 
 ## Functional-first programming foundation
 
-Ain is functional-first, **not purely functional**: immutable-style data
+Babel is functional-first, **not purely functional**: immutable-style data
 transformations and callback combinators are the default, while explicit
 mutable reference cells and controlled side effects remain available.
 
 The native backend now has experimental structured `Data` values with lists,
 records, tuple-style pairs, strict JSON parsing, canonical JSON output,
 `map`, `filter`, `fold`, iteration and state cells. The compiler also
-offers `ainc check-json` for machine-readable diagnostics. User functions now
+offers `babelc check-json` for machine-readable diagnostics. User functions now
 have experimental inferred parametric types in the Rust backend; LLVM explicitly
 rejects polymorphic definitions until its specialization path is implemented.
 
@@ -94,7 +94,7 @@ user-defined ADTs and pattern matching remain unimplemented.
 
 ## Composable GTK4 desktop apps
 
-Ain's native GUI runtime now supports `guiupdate title layout` to render a
+Babel's native GUI runtime now supports `guiupdate title layout` to render a
 window without blocking and `guitick milliseconds` to pump GTK events while
 background `spawn` tasks are running. Unlike repeatedly calling `gui`,
 `guitick` preserves partially typed input and does not rebuild widgets.
@@ -102,7 +102,7 @@ background `spawn` tasks are running. Unlike repeatedly calling `gui`,
 Layouts now support nested rows, columns, panels, responsive wrapping grids,
 CSS classes and custom GTK CSS rules. The GTK renderer also preserves scroll
 position when conversations are redrawn. See [native layout documentation](docs/gui.md)
-and [the GUI language reference](docs/language.md#responsive-gtk4-applications-in-ain).
+and [the GUI language reference](docs/language.md#responsive-gtk4-applications-in-babel).
 An end-to-end native GTK4 test launches a window under Xvfb and verifies a timer
 event. The GUI remains experimental. GTK4 supports Linux, macOS and Windows, but
 Nix packaging is Linux-only and macOS/Windows GUI builds are not yet verified
@@ -160,8 +160,8 @@ array-of-tables and multiline strings. See the [TOML guide](docs/toml.md).
 
 ## Deterministic formatting for AI-generated source
 
-`ainc fmt FILE.ain` emits canonical spacing without changing program
-semantics; `ainc fmt-check FILE.ain` fails in CI when source is not
+`babelc fmt FILE.babel` emits canonical spacing without changing program
+semantics; `babelc fmt-check FILE.babel` fails in CI when source is not
 canonically formatted. Comments, blank lines, literal string contents,
 and definition order remain intact. See the [formatter guide](docs/formatter.md).
 
@@ -178,14 +178,14 @@ User-defined structs and arbitrary-length tuples remain future work.
 Native programs can list directories, create paths, remove individual files,
 join paths, inspect the working directory, and run processes using structured
 argument arrays with captured output and errors. The operations are guarded
-by Ain's optional builtin permission checks, **not** by an OS sandbox.
+by Babel's optional builtin permission checks, **not** by an OS sandbox.
 See the [filesystem and process guide](docs/fs-process.md).
 
 ## AI-oriented diagnostics and effect checks
 
-`ainc check-json` emits machine-readable error categories and targeted
-repair hints; `ainc run-checked` defaults Ain **builtins** to denied effects,
-with explicit opt-in via `AIN_PERMISSIONS=read,network`, for example.
+`babelc check-json` emits machine-readable error categories and targeted
+repair hints; `babelc run-checked` defaults Babel **builtins** to denied effects,
+with explicit opt-in via `BABEL_PERMISSIONS=read,network`, for example.
 
 These builtin checks are **not an OS sandbox** and do not protect against
 untrusted native FFI or permitted subprocesses. See the
@@ -227,7 +227,7 @@ There is no `fn` keyword, no call parentheses, and no declared integer types. Th
 Unit-argument functions use `_`:
 
 ```text
-greet _ = print "Hello from AIN"
+greet _ = print "Hello from Babel"
 greet _
 ```
 
@@ -236,15 +236,15 @@ For more examples, see [`examples/`](examples/) and the [language guide](docs/la
 ## Download prebuilt compiler binaries
 
 Every push to `main` and every pull request builds release versions of
-`ainc` for Linux x86-64, Linux ARM64, macOS Intel/Apple Silicon and Windows
+`babelc` for Linux x86-64, Linux ARM64, macOS Intel/Apple Silicon and Windows
 x86-64. Choose a recent successful run under
-[GitHub Actions > Build ainc binaries](https://github.com/honerop/ain/actions/workflows/build-binaries.yml)
-and download the `ainc-<platform>` artifact. Each archive includes the binary,
+[GitHub Actions > Build babelc binaries](https://github.com/honerop/babel/actions/workflows/build-binaries.yml)
+and download the `babelc-<platform>` artifact. Each archive includes the binary,
 license, README, and SHA-256 checksum. Artifacts expire after 30 days.
 
 Linux archives use statically linked **musl** binaries, so the compiler itself
 does not require the usual glibc dynamic loader on NixOS. However, building
-Ain programs still calls external `rustc` (or Clang for the LLVM subset)
+Babel programs still calls external `rustc` (or Clang for the LLVM subset)
 and generated applications may need their own native system libraries.
 The compiler is not a standalone installer for those toolchains.
 
@@ -253,11 +253,11 @@ The compiler is not a standalone installer for those toolchains.
 **NixOS / Nix (recommended)**
 
 ```sh
-git clone https://github.com/honerop/ain.git
-cd ain
+git clone https://github.com/honerop/babel.git
+cd babel
 nix develop
 cargo test
-cargo run -- run examples/arithmetic.ain
+cargo run -- run examples/arithmetic.babel
 ```
 
 **Other systems:** install Rust/Cargo and the native tools listed below, then run the same `cargo` commands from the repository root.
@@ -273,9 +273,9 @@ cargo run -- run examples/arithmetic.ain
 Try the experimental direct LLVM path for supported numeric/boolean programs:
 
 ```sh
-cargo run -- air examples/recursive.ain
-cargo run -- llvm examples/recursive.ain
-cargo run -- run-llvm examples/recursive.ain
+cargo run -- air examples/recursive.babel
+cargo run -- llvm examples/recursive.babel
+cargo run -- run-llvm examples/recursive.babel
 ```
 
 The recursive example should print `720` and `42`.
@@ -284,21 +284,21 @@ The recursive example should print `720` and `42`.
 
 | Command | Purpose |
 | --- | --- |
-| `cargo run -- check file.ain` | Parse and type-check an AIN program |
-| `cargo run -- transpile file.ain` | Generate Rust source |
-| `cargo run -- run file.ain` | Compile through Rust and execute |
-| `cargo run -- build file.ain -o app` | Build a native executable through Rust |
-| `cargo run -- air file.ain` | Inspect the experimental typed AIR |
-| `cargo run -- llvm file.ain` | Generate LLVM IR directly |
-| `cargo run -- run-llvm file.ain` | Build through Clang and execute |
-| `cargo run -- build-llvm file.ain -o app` | Build through Clang with optimizations |
+| `cargo run -- check file.babel` | Parse and type-check an Babel program |
+| `cargo run -- transpile file.babel` | Generate Rust source |
+| `cargo run -- run file.babel` | Compile through Rust and execute |
+| `cargo run -- build file.babel -o app` | Build a native executable through Rust |
+| `cargo run -- air file.babel` | Inspect the experimental typed AIR |
+| `cargo run -- llvm file.babel` | Generate LLVM IR directly |
+| `cargo run -- run-llvm file.babel` | Build through Clang and execute |
+| `cargo run -- build-llvm file.babel -o app` | Build through Clang with optimizations |
 
 LLVM commands currently **reject unsupported operations**, including strings. They do not silently fall back to C.
 
 ## Architecture
 
 ```text
-                         AIN source
+                         Babel source
                              |
                      Parser + type inference
                              |
@@ -313,16 +313,16 @@ LLVM commands currently **reject unsupported operations**, including strings. Th
                                    Native executable
 
                  Self-hosting experiment:
-    bootstrap/compiler.ain -> C source -> GCC + small C runtime
+    bootstrap/compiler.babel -> C source -> GCC + small C runtime
 ```
 
-AIN currently has **three distinct paths**:
+Babel currently has **three distinct paths**:
 
 | Path | Status | Notes |
 | --- | --- | --- |
 | Rust stage zero → Rust → native | Available / experimental | Primitive monomorphic type inference and more library operations |
 | Typed AIR → LLVM IR → native | Experimental subset | Unboxed integers, booleans, units, recursion, checked arithmetic, conditionals |
-| Self-hosted AIN → C → native | Bootstrap proof of concept | Compiler source is written in AIN, but uses a tagged-value C runtime |
+| Self-hosted Babel → C → native | Bootstrap proof of concept | Compiler source is written in Babel, but uses a tagged-value C runtime |
 
 **The production direction is typed AIR → LLVM IR → native code.** The C compiler is retained as a bootstrapping demonstration, not as the intended performance backend. The LLVM path is *not yet self-hosting*.
 
@@ -330,25 +330,25 @@ See [Architecture](docs/architecture.md) for backend boundaries and verification
 
 ## Self-hosting
 
-The compiler in [`bootstrap/compiler.ain`](bootstrap/compiler.ain) can compile its own AIN source through successive stages.
+The compiler in [`bootstrap/compiler.babel`](bootstrap/compiler.babel) can compile its own Babel source through successive stages.
 
 ```sh
 ./scripts/bootstrap.sh
 ```
 
-This uses the Rust stage-zero compiler, then recompiles the AIN compiler through C and checks whether successive stages emit byte-identical C source.
+This uses the Rust stage-zero compiler, then recompiles the Babel compiler through C and checks whether successive stages emit byte-identical C source.
 
-A separate offline reference route uses Python, GCC, and the same AIN compiler source:
+A separate offline reference route uses Python, GCC, and the same Babel compiler source:
 
 ```sh
 ./scripts/bootstrap.sh --reference
 ```
 
-The **reference route has been verified** with the included example programs. The default Rust-first bootstrap still needs independent verification in a working Rust CI environment. The current GitHub Actions history contains failures, so do not treat the CI badge as proof of a passing release.
+The **reference route has been verified** with the included example programs. The default Rust-first bootstrap still needs independent verification in a working Rust CI environment. Check the latest CI runs and release build results before relying on a binary.
 
 ## Project status
 
-**Version:** 0.3.0 experimental source milestone (not a stable release).
+**Version:** 0.3.1 experimental source milestone (not a stable release).
 
 **Implemented or partially implemented**
 
@@ -374,11 +374,11 @@ The immediate priority is **compiler correctness**, then feature parity and repr
 ## Repository layout
 
 ```text
-bootstrap/           AIN-written self-hosted compiler
+bootstrap/           Babel-written self-hosted compiler
 src/compiler.rs      Rust parser, type inference, Rust backend
 src/compiler/air.rs  Experimental AIR + LLVM IR backend
 runtime/             Tagged-value C runtime for the bootstrap
-examples/            Small AIN programs
+examples/            Small Babel programs
 scripts/             Bootstrap scripts and independent reference compiler
 tests/               Compiler / LLVM integration tests
 docs/                Language and architecture documentation
@@ -387,10 +387,10 @@ docs/                Language and architecture documentation
 
 ## Contributing
 
-AIN is early-stage and changing quickly. Bug reports, minimal reproductions, test cases, and benchmark proposals are especially valuable.
+Babel is early-stage and changing quickly. Bug reports, minimal reproductions, test cases, and benchmark proposals are especially valuable.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [the code of conduct](CODE_OF_CONDUCT.md) before contributing. Issues and pull requests are welcome; start with a small, testable change.
 
 ## License
 
-[MIT](LICENSE). © 2026 AIN contributors.
+[MIT](LICENSE). © 2026 Babel contributors.

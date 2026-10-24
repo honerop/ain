@@ -1,12 +1,12 @@
 # Real LLM coding benchmark
 
-The Ain benchmark runs **real model-generated programs** against input/output
+The Babel benchmark runs **real model-generated programs** against input/output
 tests instead of measuring source length alone. It can call an
 **OpenAI-compatible Chat Completions API** or read existing response files. The
 Python 3 runner uses only the standard library; no OpenCode or OpenAI SDK is
 needed.
 
-Supported: Ain, Python, Rust and TypeScript. The initial suite has six
+Supported: Babel, Python, Rust and TypeScript. The initial suite has six
 tasks with multiple test cases each. Treat this as a starting corpus, not
 evidence of a general language advantage.
 
@@ -17,15 +17,15 @@ From the repository root:
 ~~~sh
 # Put your actual key in an environment variable, not command history.
 export OPENAI_API_KEY="your-api-key"
-cargo build --bin ainc
+cargo build --bin babelc
 
 python3 tools/llm_bench.py \
   --api-responses-dir ./responses/my-model \
   --api-base-url https://api.openai.com/v1 \
   --model YOUR_MODEL_ID \
-  --languages ain,python,rust,typescript \
+  --languages babel,python,rust,typescript \
   --attempts 3 \
-  --ainc "$PWD/target/debug/ainc" \
+  --babelc "$PWD/target/debug/babelc" \
   --report ./results/llm-benchmark.json \
   --allow-unsafe-execution
 ~~~
@@ -103,7 +103,7 @@ HTTP, `--allow-insecure-http` is required and not recommended.
 - `--api-retries 2` retries explicit HTTP 429/5xx responses. Default: 0,
   because retries can result in additional charges. Ambiguous connection
   failures are never retried automatically.
-- `--languages ain,python` narrows the comparison; `--attempts 1` controls
+- `--languages babel,python` narrows the comparison; `--attempts 1` controls
   independent generation attempts per task. Existing response files are
   reused when the requested model is unchanged. Use a *different directory*
   when you change models or providers.
@@ -168,7 +168,7 @@ have time limits. The tool is still **not a security sandbox**.
 python3 -m unittest discover -s tests -p 'test_llm_*.py' -v
 ~~~
 
-CI runs those tests using mocked API requests, then exercises the Ain
+CI runs those tests using mocked API requests, then exercises the Babel
 compiler on trusted test source. That checks the harness, not a paid
-model's ability to generate Ain. Separately,
+model's ability to generate Babel. Separately,
 [`token-benchmark.md`](token-benchmark.md) compares source tokens only.

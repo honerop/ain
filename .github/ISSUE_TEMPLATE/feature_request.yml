@@ -7,7 +7,7 @@ body:
     id: problem
     attributes:
       label: Problem or use case
-      description: What problem does this solve for AIN or AI-written programs?
+      description: What problem does this solve for BABEL or AI-written programs?
     validations:
       required: true
   - type: textarea

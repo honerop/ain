@@ -1,25 +1,25 @@
-// Portable PCM WAV synthesizer for Ain: sequenced sine tones (16-bit mono).
+// Portable PCM WAV synthesizer for Babel: sequenced sine tones (16-bit mono).
 // Uses only Rust's standard library and is linked only when requested.
-fn ain_wavwrite(path: String, spec: AinData) -> AinData {
-    let run = (|| -> Result<AinData, String> {
-        if !ain_permission_allowed("write") { return Err("Ain capability denied: write".into()); }
-        let AinData::Object(config) = spec else { return Err("WAV spec must be a record".into()); };
+fn babel_wavwrite(path: String, spec: BabelData) -> BabelData {
+    let run = (|| -> Result<BabelData, String> {
+        if !babel_permission_allowed("write") { return Err("Babel capability denied: write".into()); }
+        let BabelData::Object(config) = spec else { return Err("WAV spec must be a record".into()); };
         let rate = match config.get("rate") {
             None => 44100,
-            Some(AinData::Number(n)) => n.parse::<u32>().map_err(|_| "Bad WAV sample rate")?,
+            Some(BabelData::Number(n)) => n.parse::<u32>().map_err(|_| "Bad WAV sample rate")?,
             _ => return Err("WAV rate must be numeric".into())
         };
         if !(8000..=96000).contains(&rate) { return Err("WAV sample rate out of range".into()); }
-        let AinData::List(notes) = config.get("notes").ok_or("WAV requires notes list")?
+        let BabelData::List(notes) = config.get("notes").ok_or("WAV requires notes list")?
             else { return Err("WAV notes must be a list".into()); };
         if notes.is_empty() || notes.len() > 500 { return Err("WAV requires 1..500 notes".into()); }
         let mut pcm = Vec::<i16>::new();
         for note in notes {
-            let AinData::Object(values) = note else { return Err("WAV notes must be records".into()); };
+            let BabelData::Object(values) = note else { return Err("WAV notes must be records".into()); };
             let num = |name: &str, default: i64| -> Result<i64, String> {
                 match values.get(name) {
                     None => Ok(default),
-                    Some(AinData::Number(n)) => n.parse::<i64>()
+                    Some(BabelData::Number(n)) => n.parse::<i64>()
                         .map_err(|_| format!("Invalid numeric note field {name}")),
                     _ => Err(format!("Note field {name} must be numeric"))
                 }
@@ -65,7 +65,7 @@ fn ain_wavwrite(path: String, spec: AinData) -> AinData {
         wav.extend_from_slice(&data_size.to_le_bytes());
         for sample in &pcm { wav.extend_from_slice(&sample.to_le_bytes()); }
         std::fs::write(path, &wav).map_err(|e| e.to_string())?;
-        Ok(AinData::Number(pcm.len().to_string()))
+        Ok(BabelData::Number(pcm.len().to_string()))
     })();
-    match run { Ok(v) => ain_result(true, v, ""), Err(e) => ain_result(false, AinData::Null, &e) }
+    match run { Ok(v) => babel_result(true, v, ""), Err(e) => babel_result(false, BabelData::Null, &e) }
 }

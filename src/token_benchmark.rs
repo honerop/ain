@@ -14,7 +14,7 @@ struct Entry {
 }
 fn label(p:&Path)->&'static str {
     match p.extension().and_then(|x|x.to_str()) {
-        Some("ain")=>"Ain",
+        Some("babel")=>"Babel",
         Some("py")=>"Python",
         Some("ts")=>"TypeScript",
         Some("rs")=>"Rust",
@@ -24,7 +24,7 @@ fn label(p:&Path)->&'static str {
 pub fn run(args:&[String])->Result<(),String> {
     let json=args.iter().any(|arg|arg=="--json");
     let files=args.iter().filter(|arg|arg.as_str()!="--json").collect::<Vec<_>>();
-    if files.is_empty() {return Err("usage: ainc tokens FILE... [--json] (with --features token-bench)".into());}
+    if files.is_empty() {return Err("usage: babelc tokens FILE... [--json] (with --features token-bench)".into());}
     let enc=tiktoken::get_encoding("o200k_base")
         .ok_or("o200k_base encoding not available in this build")?;
     let mut entries=Vec::new();
@@ -53,13 +53,13 @@ pub fn run(args:&[String])->Result<(),String> {
         print!("],\"comparisons\":[");
         let mut first=true;
         for (task,entries) in &grouped {
-            if let Some(ain)=entries.iter().find(|e|e.language=="Ain") {
-                for other in entries.iter().filter(|e|e.language!="Ain") {
+            if let Some(babel)=entries.iter().find(|e|e.language=="Babel") {
+                for other in entries.iter().filter(|e|e.language!="Babel") {
                     if !first {print!(",");}
                     first=false;
-                    print!("{{\"task\":{},\"against\":{},\"ain_tokens\":{},\"other_tokens\":{},\"savings_pct\":{:.2}}}",
-                        json_string(task),json_string(other.language),ain.tokens,other.tokens,
-                        100.0*(1.0-(ain.tokens as f64/other.tokens as f64)));
+                    print!("{{\"task\":{},\"against\":{},\"babel_tokens\":{},\"other_tokens\":{},\"savings_pct\":{:.2}}}",
+                        json_string(task),json_string(other.language),babel.tokens,other.tokens,
+                        100.0*(1.0-(babel.tokens as f64/other.tokens as f64)));
                 }
             }
         }
@@ -68,12 +68,12 @@ pub fn run(args:&[String])->Result<(),String> {
         println!("Tokenizer: o200k_base | source text only, not model API usage");
         println!("{:<13} {:<11} {:>7} {:>7}", "Task","Language","Tokens","Bytes");
         for e in &entries {println!("{:<13} {:<11} {:>7} {:>7}",e.task,e.language,e.tokens,e.bytes);}
-        println!("\nAin source token savings (negative means Ain uses more):");
+        println!("\nAin source token savings (negative means Babel uses more):");
         for (task,group) in grouped {
-            if let Some(ain)=group.iter().find(|e|e.language=="Ain") {
-                for other in group.iter().filter(|e|e.language!="Ain") {
+            if let Some(babel)=group.iter().find(|e|e.language=="Babel") {
+                for other in group.iter().filter(|e|e.language!="Babel") {
                     println!("  {:<12} vs {:<11}: {:+.1}%",task,other.language,
-                        100.0*(1.0-ain.tokens as f64/other.tokens as f64));
+                        100.0*(1.0-babel.tokens as f64/other.tokens as f64));
                 }
             }
         }
@@ -85,8 +85,8 @@ mod tests {
     #[test] fn real_tokenizer_known_example(){
         let enc=tiktoken::get_encoding("o200k_base").unwrap();
         assert_eq!(enc.count("hello world"),2);
-        let verbose=include_str!("../benchmarks/experiments/lists-original.ain");
-        let compact=include_str!("../benchmarks/tokens/lists/ain.ain");
+        let verbose=include_str!("../benchmarks/experiments/lists-original.babel");
+        let compact=include_str!("../benchmarks/tokens/lists/babel.babel");
         assert!(enc.count(compact)<enc.count(verbose),"token-minimal list form should be smaller");
         assert_eq!(enc.count(verbose),33);
         assert_eq!(enc.count(compact),23);

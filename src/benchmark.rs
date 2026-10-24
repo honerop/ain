@@ -1,4 +1,4 @@
-//! Native Ain compiler benchmark, independent of Python or model providers.
+//! Native Babel compiler benchmark, independent of Python or model providers.
 //! Executes the supplied program. Never benchmark untrusted programs without OS isolation.
 use super::{clang, compile, compile_llvm, json_string, rustc, work_dir};
 use std::env;
@@ -93,7 +93,7 @@ fn measure(source: &str, kind: &'static str, repeats: usize, timeout: Duration, 
 }
 
 pub fn run(args: &[String]) -> Result<(),String> {
-    let Some(file) = args.first() else {return Err("usage: ainc bench FILE.ain [--backend rust|llvm|both] [--runs N] [--timeout-ms N] [--json]".into())};
+    let Some(file) = args.first() else {return Err("usage: babelc bench FILE.babel [--backend rust|llvm|both] [--runs N] [--timeout-ms N] [--json]".into())};
     let mut backend="rust";
     let mut repeats=3usize;
     let mut timeout_ms=5000u64;
@@ -130,7 +130,7 @@ pub fn run(args: &[String]) -> Result<(),String> {
         }
         println!("]}}");
     } else {
-        println!("Ain benchmark: {file} ({repeats} runs)");
+        println!("Babel benchmark: {file} ({repeats} runs)");
         for m in &measurements {
             println!("  {}: compile {:.2} ms, median run {:.2} ms, executable {} bytes",
                 m.kind,m.compile_ms,m.median_run_ms,m.binary_bytes);

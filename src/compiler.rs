@@ -1,4 +1,4 @@
-//! AIN 0.2.0: one definition or expression per line; fixed-arity prefix expressions.
+//! BABEL 0.2.0: one definition or expression per line; fixed-arity prefix expressions.
 //! Parses and typechecks source, then generates standalone Rust (std only).
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -71,7 +71,7 @@ fn lex(line: &str, lineno: usize) -> Result<Vec<Token>, CompileError> {
     Ok(result)
 }
 
-/// Deterministic source formatter for AI-authored Ain programs.
+/// Deterministic source formatter for AI-authored Babel programs.
 ///
 /// It first parses the source to reject malformed expressions, then formats
 /// lexical tokens without changing definition order or comment placement.
@@ -305,8 +305,8 @@ impl Ty {
     fn rust(&self) -> String {
         match self {
             Ty::Int => "i64".into(), Ty::Bool => "bool".into(),
-            Ty::Str => "String".into(), Ty::Data => "AinData".into(),
-            Ty::Cell => "AinCell".into(), Ty::Task => "AinTask".into(),
+            Ty::Str => "String".into(), Ty::Data => "BabelData".into(),
+            Ty::Cell => "BabelCell".into(), Ty::Task => "BabelTask".into(),
             Ty::List(inner) => format!("Vec<{}>", inner.rust()),
             Ty::Map(inner) => format!("std::collections::BTreeMap<String, {}>", inner.rust()),
             Ty::Tuple(first, second) => format!("({}, {})", first.rust(), second.rust()),
@@ -772,7 +772,7 @@ fn check(program: Program) -> Result<Checked, CompileError> {
 fn safe_id(name: &str) -> String {
     // Identifiers are restricted to ASCII letters, digits, underscores;
     // prefix keeps them clear of Rust keywords.
-    format!("ain_{name}")
+    format!("babel_{name}")
 }
 fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty>, global: &HashMap<String, Ty>) -> String {
     match expr {
@@ -789,9 +789,9 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 let Expr::Str(callback) = &args[0] else { unreachable!("callback checked"); };
                 let a: Vec<String> = args[1..].iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
                 return match name.as_str() {
-                    "listmap" => format!("ain_list_map({}, {})", a[0], safe_id(callback)),
-                    "listfilter" => format!("ain_list_filter({}, {})", a[0], safe_id(callback)),
-                    "listfold" => format!("ain_list_fold({}, {}, {})", a[1], a[0], safe_id(callback)),
+                    "listmap" => format!("babel_list_map({}, {})", a[0], safe_id(callback)),
+                    "listfilter" => format!("babel_list_filter({}, {})", a[0], safe_id(callback)),
+                    "listfold" => format!("babel_list_fold({}, {}, {})", a[1], a[0], safe_id(callback)),
                     _ => unreachable!()
                 }
             }
@@ -799,12 +799,12 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 let Expr::Str(callback) = &args[0] else { unreachable!("callback checked"); };
                 let a: Vec<String> = args[1..].iter().map(|e| rust_expr(e, fn_names, local, global)).collect();
                 return match name.as_str() {
-                    "map" => format!("ain_data_map({}, {})", a[0], safe_id(callback)),
-                    "filter" => format!("ain_data_filter({}, {})", a[0], safe_id(callback)),
-                    "fold" => format!("ain_data_fold({}, {}, {})", a[1], a[0], safe_id(callback)),
-                    "iterate" => format!("ain_data_iterate({}, {}, {})", a[0], a[1], safe_id(callback)),
-                    "each" => format!("ain_data_each({}, {})", a[0], safe_id(callback)),
-                    "spawn" => format!("ain_task_spawn({}, {})", safe_id(callback), a[0]),
+                    "map" => format!("babel_data_map({}, {})", a[0], safe_id(callback)),
+                    "filter" => format!("babel_data_filter({}, {})", a[0], safe_id(callback)),
+                    "fold" => format!("babel_data_fold({}, {}, {})", a[1], a[0], safe_id(callback)),
+                    "iterate" => format!("babel_data_iterate({}, {}, {})", a[0], a[1], safe_id(callback)),
+                    "each" => format!("babel_data_each({}, {})", a[0], safe_id(callback)),
+                    "spawn" => format!("babel_task_spawn({}, {})", safe_id(callback), a[0]),
                     _ => unreachable!()
                 };
             }
@@ -821,8 +821,8 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "or" => format!("(({}) || ({}))", a[0], a[1]),
                 "not" => format!("(!({}))", a[0]),
                 "if" => format!("(if {} {{ {} }} else {{ {} }})", a[0], a[1], a[2]),
-                "print" => format!("ain_print({})", a[0]),
-                "assert" => format!("{{ assert!({}, \"Ain assertion failed\"); }}", a[0]),
+                "print" => format!("babel_print({})", a[0]),
+                "assert" => format!("{{ assert!({}, \"Babel assertion failed\"); }}", a[0]),
                 "split" => format!("{{ let source={}; let needle={}; if needle.is_empty() {{ source.chars().map(|c|c.to_string()).collect::<Vec<String>>() }} else {{ source.split(&needle).map(|s|s.to_string()).collect::<Vec<String>>() }} }}",a[0],a[1]),
                 "lines" => format!("({}).lines().map(|s|s.to_string()).collect::<Vec<String>>()",a[0]),
                 "strjoin" => format!("({}).join(({}).as_str())",a[0],a[1]),
@@ -836,12 +836,12 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "listlast" => format!("({}).into_iter().last()",a[0]),
                 "listenumerate" => format!("({}).into_iter().enumerate().map(|(i,v)| (i64::try_from(i).expect(\"too many list elements\"),v)).collect::<Vec<_>>()",a[0]),
                 "sortint"|"sortstr" => format!("{{ let mut list={}; list.sort(); list }}",a[0]),
-                "fslist" => format!("ain_fs_list({})",a[0]),
-                "fsmkdir" => format!("ain_fs_mkdir({})",a[0]),
-                "fsremove" => format!("ain_fs_remove({})",a[0]),
-                "workingdir" => format!("ain_working_directory({})",a[0]),
-                "pathjoin" => format!("ain_path_join({}, {})",a[0],a[1]),
-                "processrun" => format!("ain_process_run({}, {})",a[0],a[1]),
+                "fslist" => format!("babel_fs_list({})",a[0]),
+                "fsmkdir" => format!("babel_fs_mkdir({})",a[0]),
+                "fsremove" => format!("babel_fs_remove({})",a[0]),
+                "workingdir" => format!("babel_working_directory({})",a[0]),
+                "pathjoin" => format!("babel_path_join({}, {})",a[0],a[1]),
+                "processrun" => format!("babel_process_run({}, {})",a[0],a[1]),
                 "tuple2" => format!("({}, {})",a[0],a[1]),
                 "tuple3" => format!("({}, {}, {})",a[0],a[1],a[2]),
                 "tuplefst" => format!("({}).0",a[0]),
@@ -850,27 +850,27 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "tuple3fst" => format!("({}).0",a[0]),
                 "tuple3snd" => format!("({}).1",a[0]),
                 "tuple3third" => format!("({}).2",a[0]),
-                "tomlparse" => format!("ain_tomlparse({})", a[0]),
-                "tomlwrite" => format!("ain_tomlwrite({})", a[0]),
-                "ffi0" => format!("ain_ffi0({}, {})", a[0], a[1]),
-                "ffi1" => format!("ain_ffi1({}, {}, {})", a[0], a[1], a[2]),
-                "ffi2" => format!("ain_ffi2({}, {}, {}, {})", a[0], a[1], a[2], a[3]),
-                "tcprequest" => format!("ain_tcp_request({}, {})", a[0], a[1]),
-                "httpserveonce" => format!("ain_http_serveonce({}, {})", a[0], a[1]),
-                "wavwrite" => format!("ain_wavwrite({}, {})", a[0], a[1]),
-                "svgwrite" => format!("ain_svgwrite({}, {})", a[0], a[1]),
-                "gltfwrite" => format!("ain_gltfwrite({}, {})", a[0], a[1]),
-                "mapone" => format!("ain_map_one({}, {})", a[0], a[1]),
-                "mapset" => format!("ain_map_set({}, {}, {})", a[0], a[1], a[2]),
-                "mapat" => format!("ain_map_at({}, {}, {})", a[0], a[1], a[2]),
-                "maphas" => format!("ain_map_has({}, {})", a[0], a[1]),
-                "mapremove" => format!("ain_map_remove({}, {})", a[0], a[1]),
-                "maplen" => format!("ain_map_len({})", a[0]),
-                "mapkeys" => format!("ain_map_keys({})", a[0]),
-                "mapvalues" => format!("ain_map_values({})", a[0]),
-                "httprequest" => format!("ain_http_request_data({}, {}, {})", a[0], a[1], a[2]),
-                "guiupdate" => format!("{{ ain_check_permission(\"desktop\"); ain_guiupdate({}, {}) }}", a[0], a[1]),
-                "guitick" => format!("{{ ain_check_permission(\"desktop\"); ain_guitick({}) }}", a[0]),
+                "tomlparse" => format!("babel_tomlparse({})", a[0]),
+                "tomlwrite" => format!("babel_tomlwrite({})", a[0]),
+                "ffi0" => format!("babel_ffi0({}, {})", a[0], a[1]),
+                "ffi1" => format!("babel_ffi1({}, {}, {})", a[0], a[1], a[2]),
+                "ffi2" => format!("babel_ffi2({}, {}, {}, {})", a[0], a[1], a[2], a[3]),
+                "tcprequest" => format!("babel_tcp_request({}, {})", a[0], a[1]),
+                "httpserveonce" => format!("babel_http_serveonce({}, {})", a[0], a[1]),
+                "wavwrite" => format!("babel_wavwrite({}, {})", a[0], a[1]),
+                "svgwrite" => format!("babel_svgwrite({}, {})", a[0], a[1]),
+                "gltfwrite" => format!("babel_gltfwrite({}, {})", a[0], a[1]),
+                "mapone" => format!("babel_map_one({}, {})", a[0], a[1]),
+                "mapset" => format!("babel_map_set({}, {}, {})", a[0], a[1], a[2]),
+                "mapat" => format!("babel_map_at({}, {}, {})", a[0], a[1], a[2]),
+                "maphas" => format!("babel_map_has({}, {})", a[0], a[1]),
+                "mapremove" => format!("babel_map_remove({}, {})", a[0], a[1]),
+                "maplen" => format!("babel_map_len({})", a[0]),
+                "mapkeys" => format!("babel_map_keys({})", a[0]),
+                "mapvalues" => format!("babel_map_values({})", a[0]),
+                "httprequest" => format!("babel_http_request_data({}, {}, {})", a[0], a[1], a[2]),
+                "guiupdate" => format!("{{ babel_check_permission(\"desktop\"); babel_guiupdate({}, {}) }}", a[0], a[1]),
+                "guitick" => format!("{{ babel_check_permission(\"desktop\"); babel_guitick({}) }}", a[0]),
                 "option_some" => format!("Some({})", a[0]),
                 "option_none" => "None".into(),
                 "option_has" => format!("({}).is_some()", a[0]),
@@ -880,60 +880,60 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "result_valid" => format!("({}).is_ok()", a[0]),
                 "result_error" => format!("({}).err().unwrap_or_default()", a[0]),
                 "result_get" => format!("({}).unwrap_or({})", a[0], a[1]),
-                "tryread" => format!("ain_fs_tryread({})", a[0]),
+                "tryread" => format!("babel_fs_tryread({})", a[0]),
                 "listof" => format!("vec![{}]", a[0]),
                 "listpush" => format!("{{ let mut xs = {}; xs.push({}); xs }}", a[0], a[1]),
                 "listat" => format!("({})[usize::try_from({}).expect(\"invalid list index\")].clone()", a[0], a[1]),
                 "listlen" => format!("({}).len() as i64", a[0]),
-                "csvparse" => format!("ain_csvparse({})", a[0]),
-                "trycsv" => format!("ain_trycsv({})", a[0]),
-                "csvwrite" => format!("ain_csvwrite({})", a[0]),
-                "utf8bytes" => format!("ain_utf8bytes({})", a[0]),
-                "frombytes" => format!("ain_frombytes({})", a[0]),
-                "b64encode" => format!("ain_b64encode({})", a[0]),
-                "b64decode" => format!("ain_b64decode({})", a[0]),
-                "zpack" => format!("ain_zpack({})", a[0]),
-                "zunpack" => format!("ain_zunpack({})", a[0]),
-                "sqlquery" => format!("ain_sqlquery({}, {}, {})", a[0], a[1], a[2]),
-                "sqlexec" => format!("ain_sqlexec({}, {}, {})", a[0], a[1], a[2]),
-                "run" => format!("{{ ain_check_permission(\"process\"); std::process::Command::new({}).arg({}).status().expect(\"cannot run process\").code().unwrap_or(1) as i64 }}", a[0], a[1]),
-                "json" => format!("ain_json({})", a[0]),
-                "tryjson" => format!("ain_tryjson({})", a[0]),
+                "csvparse" => format!("babel_csvparse({})", a[0]),
+                "trycsv" => format!("babel_trycsv({})", a[0]),
+                "csvwrite" => format!("babel_csvwrite({})", a[0]),
+                "utf8bytes" => format!("babel_utf8bytes({})", a[0]),
+                "frombytes" => format!("babel_frombytes({})", a[0]),
+                "b64encode" => format!("babel_b64encode({})", a[0]),
+                "b64decode" => format!("babel_b64decode({})", a[0]),
+                "zpack" => format!("babel_zpack({})", a[0]),
+                "zunpack" => format!("babel_zunpack({})", a[0]),
+                "sqlquery" => format!("babel_sqlquery({}, {}, {})", a[0], a[1], a[2]),
+                "sqlexec" => format!("babel_sqlexec({}, {}, {})", a[0], a[1], a[2]),
+                "run" => format!("{{ babel_check_permission(\"process\"); std::process::Command::new({}).arg({}).status().expect(\"cannot run process\").code().unwrap_or(1) as i64 }}", a[0], a[1]),
+                "json" => format!("babel_json({})", a[0]),
+                "tryjson" => format!("babel_tryjson({})", a[0]),
                 "encode" => format!("({}).json()", a[0]),
-                "array" => format!("ain_data_array({})", a[0]),
-                "record" => format!("ain_data_record({})", a[0]),
-                "nil" => format!("ain_data_null({})", a[0]),
-                "boxint" => format!("ain_data_int({})", a[0]),
-                "boxstr" => format!("ain_data_text({})", a[0]),
-                "boxbool" => format!("ain_data_bool({})", a[0]),
-                "asint" => format!("ain_data_asint({})", a[0]),
-                "astext" => format!("ain_data_astext({})", a[0]),
-                "asbool" => format!("ain_data_asbool({})", a[0]),
-                "size" => format!("ain_data_size({})", a[0]),
-                "keys" => format!("ain_data_keys({})", a[0]),
-                "cell" => format!("ain_data_state({})", a[0]),
-                "readstate" => format!("ain_data_readstate({})", a[0]),
-                "fsread" => format!("ain_fs_read({})", a[0]),
-                "fswrite" => format!("ain_fs_write({}, {})", a[0], a[1]),
-                "fsexists" => format!("ain_fs_exists({})", a[0]),
-                "environ" => format!("ain_env_get({})", a[0]),
-                "httpget" => format!("ain_http_get({})", a[0]),
-                "httppost" => format!("ain_http_post({}, {})", a[0], a[1]),
-                "ready" => format!("ain_task_ready({})", a[0]),
-                "wait" => format!("ain_task_wait({})", a[0]),
-                "poll" => format!("ain_task_poll({})", a[0]),
-                "setstate" => format!("ain_data_setstate({}, {})", a[0], a[1]),
-                "swapstate" => format!("ain_data_swapstate({}, {})", a[0], a[1]),
-                "pair" => format!("ain_data_pair({}, {})", a[0], a[1]),
-                "push" => format!("ain_data_push({}, {})", a[0], a[1]),
-                "get" => format!("ain_data_get({}, {})", a[0], a[1]),
-                "put" => format!("ain_data_put({}, {}, {})", a[0], a[1], a[2]),
-                "field" => format!("ain_data_field({}, {})", a[0], a[1]),
-                "hasfield" => format!("ain_data_has({}, {})", a[0], a[1]),
-                "gui" => format!("{{ ain_check_permission(\"desktop\"); ain_gui({}, {}) }}", a[0], a[1]),
-                "chat" => format!("{{ ain_check_permission(\"ai\"); ain_chat({}, {}, {}) }}", a[0], a[1], a[2]),
-                "browser" => format!("{{ ain_check_permission(\"browser\"); ain_browser({}, {}) }}", a[0], a[1]),
-                "str" => format!("ain_str({})", a[0]),
+                "array" => format!("babel_data_array({})", a[0]),
+                "record" => format!("babel_data_record({})", a[0]),
+                "nil" => format!("babel_data_null({})", a[0]),
+                "boxint" => format!("babel_data_int({})", a[0]),
+                "boxstr" => format!("babel_data_text({})", a[0]),
+                "boxbool" => format!("babel_data_bool({})", a[0]),
+                "asint" => format!("babel_data_asint({})", a[0]),
+                "astext" => format!("babel_data_astext({})", a[0]),
+                "asbool" => format!("babel_data_asbool({})", a[0]),
+                "size" => format!("babel_data_size({})", a[0]),
+                "keys" => format!("babel_data_keys({})", a[0]),
+                "cell" => format!("babel_data_state({})", a[0]),
+                "readstate" => format!("babel_data_readstate({})", a[0]),
+                "fsread" => format!("babel_fs_read({})", a[0]),
+                "fswrite" => format!("babel_fs_write({}, {})", a[0], a[1]),
+                "fsexists" => format!("babel_fs_exists({})", a[0]),
+                "environ" => format!("babel_env_get({})", a[0]),
+                "httpget" => format!("babel_http_get({})", a[0]),
+                "httppost" => format!("babel_http_post({}, {})", a[0], a[1]),
+                "ready" => format!("babel_task_ready({})", a[0]),
+                "wait" => format!("babel_task_wait({})", a[0]),
+                "poll" => format!("babel_task_poll({})", a[0]),
+                "setstate" => format!("babel_data_setstate({}, {})", a[0], a[1]),
+                "swapstate" => format!("babel_data_swapstate({}, {})", a[0], a[1]),
+                "pair" => format!("babel_data_pair({}, {})", a[0], a[1]),
+                "push" => format!("babel_data_push({}, {})", a[0], a[1]),
+                "get" => format!("babel_data_get({}, {})", a[0], a[1]),
+                "put" => format!("babel_data_put({}, {}, {})", a[0], a[1], a[2]),
+                "field" => format!("babel_data_field({}, {})", a[0], a[1]),
+                "hasfield" => format!("babel_data_has({}, {})", a[0], a[1]),
+                "gui" => format!("{{ babel_check_permission(\"desktop\"); babel_gui({}, {}) }}", a[0], a[1]),
+                "chat" => format!("{{ babel_check_permission(\"ai\"); babel_chat({}, {}, {}) }}", a[0], a[1], a[2]),
+                "browser" => format!("{{ babel_check_permission(\"browser\"); babel_browser({}, {}) }}", a[0], a[1]),
+                "str" => format!("babel_str({})", a[0]),
                 "len" => format!("(({}).chars().count() as i64)", a[0]),
                 "upper" => format!("({}).to_uppercase()", a[0]),
                 "lower" => format!("({}).to_lowercase()", a[0]),
@@ -943,15 +943,15 @@ fn rust_expr(expr: &Expr, fn_names: &HashSet<String>, local: &HashMap<String, Ty
                 "starts" => format!("({}).starts_with(({}).as_str())", a[0], a[1]),
                 "ends" => format!("({}).ends_with(({}).as_str())", a[0], a[1]),
                 "replace" => format!("({}).replace(&{}, &{})", a[0], a[1], a[2]),
-                "before" => format!("ain_before({}, {})", a[0], a[1]),
-                "after" => format!("ain_after({}, {})", a[0], a[1]),
-                "word" => format!("ain_word({})", a[0]),
-                "skip" => format!("ain_skip({})", a[0]),
+                "before" => format!("babel_before({}, {})", a[0], a[1]),
+                "after" => format!("babel_after({}, {})", a[0], a[1]),
+                "word" => format!("babel_word({})", a[0]),
+                "skip" => format!("babel_skip({})", a[0]),
                 "num" => format!("({}).parse::<i64>().expect(\"invalid integer\")", a[0]),
                 "isnum" => format!("({}).parse::<i64>().is_ok()", a[0]),
-                "input" => format!("ain_input({})", a[0]),
-                "argv" => format!("ain_argv({})", a[0]),
-                "readline" => format!("ain_readline({})", a[0]),
+                "input" => format!("babel_input({})", a[0]),
+                "argv" => format!("babel_argv({})", a[0]),
+                "readline" => format!("babel_readline({})", a[0]),
                 "abs" => format!("({}).checked_abs().expect(\"integer overflow\")", a[0]),
                 "neg" => format!("({}).checked_neg().expect(\"integer overflow\")", a[0]),
                 "min" => format!("std::cmp::min({}, {})", a[0], a[1]),
@@ -1023,30 +1023,30 @@ fn required_traits(program:&Program)->HashMap<String,Vec<TraitNeed>> {
     }
 }
 fn emit(checked: &Checked) -> String {
-    let mut out = "// Generated by AIN compiler 0.2.0; edits will be overwritten.\n#![allow(unused_variables, dead_code)]\n\n".to_string();
-    // Keep printing/conversion well-defined for all four AIN primitive types.
-    out.push_str("trait AinText { fn ain_text(&self) -> String; }\n");
-    out.push_str("impl AinText for i64 { fn ain_text(&self) -> String { self.to_string() } }\n");
-    out.push_str("impl AinText for bool { fn ain_text(&self) -> String { self.to_string() } }\n");
-    out.push_str("impl AinText for String { fn ain_text(&self) -> String { self.clone() } }\n");
-    out.push_str("impl AinText for () { fn ain_text(&self) -> String { \"()\".to_string() } }\n");
-    out.push_str("impl<T: AinText> AinText for Vec<T> { fn ain_text(&self) -> String { format!(\"[{}]\", self.iter().map(|x| x.ain_text()).collect::<Vec<_>>().join(\",\")) } }\n");
-    out.push_str("impl<A:AinText,B:AinText> AinText for (A,B) { fn ain_text(&self) -> String { format!(\"({}, {})\",self.0.ain_text(),self.1.ain_text()) } }\n");
-    out.push_str("impl<A:AinText,B:AinText,C:AinText> AinText for (A,B,C) { fn ain_text(&self) -> String { format!(\"({}, {}, {})\",self.0.ain_text(),self.1.ain_text(),self.2.ain_text()) } }\n");
-    out.push_str("impl<T: AinText> AinText for std::collections::BTreeMap<String,T> { fn ain_text(&self) -> String { format!(\"{{{}}}\", self.iter().map(|(k,v)| format!(\"{}:{}\", k, v.ain_text())).collect::<Vec<_>>().join(\",\")) } }\n");
-    out.push_str("impl<T: AinText> AinText for Option<T> { fn ain_text(&self) -> String { match self { Some(v) => format!(\"some({})\",v.ain_text()), None => \"none\".into() } } }\n");
-    out.push_str("impl<T: AinText> AinText for Result<T,String> { fn ain_text(&self) -> String { match self { Ok(v) => format!(\"ok({})\",v.ain_text()), Err(e) => format!(\"err({})\",e) } } }\n");
-    out.push_str("fn ain_print<T: AinText>(v: T) { println!(\"{}\", v.ain_text()); }\n");
-    out.push_str("fn ain_str<T: AinText>(v: T) -> String { v.ain_text() }\n\n");
-    out.push_str(r#"fn ain_before(s: String, needle: String) -> String {
+    let mut out = "// Generated by BABEL compiler 0.2.0; edits will be overwritten.\n#![allow(unused_variables, dead_code)]\n\n".to_string();
+    // Keep printing/conversion well-defined for all four BABEL primitive types.
+    out.push_str("trait BabelText { fn babel_text(&self) -> String; }\n");
+    out.push_str("impl BabelText for i64 { fn babel_text(&self) -> String { self.to_string() } }\n");
+    out.push_str("impl BabelText for bool { fn babel_text(&self) -> String { self.to_string() } }\n");
+    out.push_str("impl BabelText for String { fn babel_text(&self) -> String { self.clone() } }\n");
+    out.push_str("impl BabelText for () { fn babel_text(&self) -> String { \"()\".to_string() } }\n");
+    out.push_str("impl<T: BabelText> BabelText for Vec<T> { fn babel_text(&self) -> String { format!(\"[{}]\", self.iter().map(|x| x.babel_text()).collect::<Vec<_>>().join(\",\")) } }\n");
+    out.push_str("impl<A:BabelText,B:BabelText> BabelText for (A,B) { fn babel_text(&self) -> String { format!(\"({}, {})\",self.0.babel_text(),self.1.babel_text()) } }\n");
+    out.push_str("impl<A:BabelText,B:BabelText,C:BabelText> BabelText for (A,B,C) { fn babel_text(&self) -> String { format!(\"({}, {}, {})\",self.0.babel_text(),self.1.babel_text(),self.2.babel_text()) } }\n");
+    out.push_str("impl<T: BabelText> BabelText for std::collections::BTreeMap<String,T> { fn babel_text(&self) -> String { format!(\"{{{}}}\", self.iter().map(|(k,v)| format!(\"{}:{}\", k, v.babel_text())).collect::<Vec<_>>().join(\",\")) } }\n");
+    out.push_str("impl<T: BabelText> BabelText for Option<T> { fn babel_text(&self) -> String { match self { Some(v) => format!(\"some({})\",v.babel_text()), None => \"none\".into() } } }\n");
+    out.push_str("impl<T: BabelText> BabelText for Result<T,String> { fn babel_text(&self) -> String { match self { Ok(v) => format!(\"ok({})\",v.babel_text()), Err(e) => format!(\"err({})\",e) } } }\n");
+    out.push_str("fn babel_print<T: BabelText>(v: T) { println!(\"{}\", v.babel_text()); }\n");
+    out.push_str("fn babel_str<T: BabelText>(v: T) -> String { v.babel_text() }\n\n");
+    out.push_str(r#"fn babel_before(s: String, needle: String) -> String {
     if needle.is_empty() { return String::new(); }
     s.split_once(needle.as_str()).map(|(a, _)| a.to_string()).unwrap_or(s)
 }
-fn ain_after(s: String, needle: String) -> String {
+fn babel_after(s: String, needle: String) -> String {
     if needle.is_empty() { return s; }
     s.split_once(needle.as_str()).map(|(_, b)| b.to_string()).unwrap_or_default()
 }
-fn ain_token(s: &str) -> (&str, &str) {
+fn babel_token(s: &str) -> (&str, &str) {
     let s = s.trim_start();
     if s.is_empty() || s.starts_with('#') { return ("", ""); }
     if s.starts_with('"') {
@@ -1061,9 +1061,9 @@ fn ain_token(s: &str) -> (&str, &str) {
     let end = s.char_indices().find(|(_, c)| c.is_whitespace() || *c == '#' || *c == '"').map(|(i, _)| i).unwrap_or(s.len());
     (&s[..end], &s[end..])
 }
-fn ain_word(s: String) -> String { ain_token(&s).0.to_string() }
-fn ain_skip(s: String) -> String { ain_token(&s).1.trim_start().to_string() }
-fn ain_input(_: ()) -> String {
+fn babel_word(s: String) -> String { babel_token(&s).0.to_string() }
+fn babel_skip(s: String) -> String { babel_token(&s).1.trim_start().to_string() }
+fn babel_input(_: ()) -> String {
     use std::io::Read;
     let mut result = String::new();
     std::io::stdin().read_to_string(&mut result).expect("stdin read failed");
@@ -1086,7 +1086,7 @@ fn ain_input(_: ()) -> String {
                     t.variables(&mut vars);
                     if vars.contains(id) {traits.add(*need);}
                 }
-                if traits.text {bounds.push("AinText");}
+                if traits.text {bounds.push("BabelText");}
                 if traits.equal {bounds.push("PartialEq");}
                 format!("G{id}: {}",bounds.join(" + "))
             }).collect::<Vec<_>>();
@@ -1116,63 +1116,63 @@ fn ain_input(_: ()) -> String {
         }
     }
     out.push_str("}\n");
-    let uses_data = out.contains("ain_chat(") || out.contains("ain_browser(") || out.contains("AinData") || out.contains("AinCell") || out.contains("AinTask") || out.contains("ain_data_") || out.contains("ain_json(") || out.contains("ain_tryjson(");
-    if uses_data { out.push_str(include_str!("../runtime/ain_data.rs")); }
-    if out.contains("ain_argv(") || out.contains("ain_readline(") {
-        out.push_str(include_str!("../runtime/ain_terminal.rs"));
+    let uses_data = out.contains("babel_chat(") || out.contains("babel_browser(") || out.contains("BabelData") || out.contains("BabelCell") || out.contains("BabelTask") || out.contains("babel_data_") || out.contains("babel_json(") || out.contains("babel_tryjson(");
+    if uses_data { out.push_str(include_str!("../runtime/babel_data.rs")); }
+    if out.contains("babel_argv(") || out.contains("babel_readline(") {
+        out.push_str(include_str!("../runtime/babel_terminal.rs"));
     }
-    let uses_effects = out.contains("ain_fs_list(") || out.contains("ain_fs_mkdir(")
-        || out.contains("ain_fs_remove(") || out.contains("ain_process_run(")
-        || out.contains("ain_working_directory(") || out.contains("ain_ffi0(") || out.contains("ain_ffi1(") || out.contains("ain_ffi2(")
-        || out.contains("ain_tcp_request(") || out.contains("ain_http_serveonce(") || out.contains("ain_wavwrite(") || out.contains("ain_svgwrite(")
-        || out.contains("ain_gltfwrite(") || out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") || out.contains("ain_check_permission(") || out.contains("ain_fs_")
-        || out.contains("ain_env_get(") || out.contains("ain_http_");
-    if uses_effects { out.push_str(include_str!("../runtime/ain_effects.rs")); }
-    let uses_tasks = out.contains("ain_task_");
-    if uses_tasks { out.push_str(include_str!("../runtime/ain_tasks.rs")); }
-    if out.contains("ain_sqlquery(") || out.contains("ain_sqlexec(") { out.push_str(include_str!("../runtime/ain_sqlite.rs")); }
-    let uses_serialize = out.contains("ain_svgwrite(") || out.contains("ain_gltfwrite(") || out.contains("ain_csv") || out.contains("ain_trycsv(")
-        || out.contains("ain_b64") || out.contains("ain_utf8bytes(")
-        || out.contains("ain_frombytes(") || out.contains("ain_zpack(") || out.contains("ain_zunpack(");
-    if uses_serialize { out.push_str(include_str!("../runtime/ain_serialize.rs")); }
-    if out.contains("ain_zpack(") || out.contains("ain_zunpack(") {
-        out.push_str(include_str!("../runtime/ain_compress.rs"));
+    let uses_effects = out.contains("babel_fs_list(") || out.contains("babel_fs_mkdir(")
+        || out.contains("babel_fs_remove(") || out.contains("babel_process_run(")
+        || out.contains("babel_working_directory(") || out.contains("babel_ffi0(") || out.contains("babel_ffi1(") || out.contains("babel_ffi2(")
+        || out.contains("babel_tcp_request(") || out.contains("babel_http_serveonce(") || out.contains("babel_wavwrite(") || out.contains("babel_svgwrite(")
+        || out.contains("babel_gltfwrite(") || out.contains("babel_sqlquery(") || out.contains("babel_sqlexec(") || out.contains("babel_check_permission(") || out.contains("babel_fs_")
+        || out.contains("babel_env_get(") || out.contains("babel_http_");
+    if uses_effects { out.push_str(include_str!("../runtime/babel_effects.rs")); }
+    let uses_tasks = out.contains("babel_task_");
+    if uses_tasks { out.push_str(include_str!("../runtime/babel_tasks.rs")); }
+    if out.contains("babel_sqlquery(") || out.contains("babel_sqlexec(") { out.push_str(include_str!("../runtime/babel_sqlite.rs")); }
+    let uses_serialize = out.contains("babel_svgwrite(") || out.contains("babel_gltfwrite(") || out.contains("babel_csv") || out.contains("babel_trycsv(")
+        || out.contains("babel_b64") || out.contains("babel_utf8bytes(")
+        || out.contains("babel_frombytes(") || out.contains("babel_zpack(") || out.contains("babel_zunpack(");
+    if uses_serialize { out.push_str(include_str!("../runtime/babel_serialize.rs")); }
+    if out.contains("babel_zpack(") || out.contains("babel_zunpack(") {
+        out.push_str(include_str!("../runtime/babel_compress.rs"));
     }
-    if out.contains("ain_list_map(") || out.contains("ain_list_filter(") || out.contains("ain_list_fold(") {
-        out.push_str(include_str!("../runtime/ain_typed_list.rs"));
+    if out.contains("babel_list_map(") || out.contains("babel_list_filter(") || out.contains("babel_list_fold(") {
+        out.push_str(include_str!("../runtime/babel_typed_list.rs"));
     }
-    if out.contains("ain_http_request_data(") { out.push_str(include_str!("../runtime/ain_http_client.rs")); }
-    if out.contains("ain_map_one(") || out.contains("ain_map_set(") || out.contains("ain_map_at(")
-        || out.contains("ain_map_has(") || out.contains("ain_map_remove(") || out.contains("ain_map_len(")
-        || out.contains("ain_map_keys(") || out.contains("ain_map_values(") {
-        out.push_str(include_str!("../runtime/ain_typed_map.rs"));
+    if out.contains("babel_http_request_data(") { out.push_str(include_str!("../runtime/babel_http_client.rs")); }
+    if out.contains("babel_map_one(") || out.contains("babel_map_set(") || out.contains("babel_map_at(")
+        || out.contains("babel_map_has(") || out.contains("babel_map_remove(") || out.contains("babel_map_len(")
+        || out.contains("babel_map_keys(") || out.contains("babel_map_values(") {
+        out.push_str(include_str!("../runtime/babel_typed_map.rs"));
     }
-    if out.contains("ain_wavwrite(") { out.push_str(include_str!("../runtime/ain_audio.rs")); }
-    if out.contains("ain_svgwrite(") || out.contains("ain_gltfwrite(") {
-        out.push_str(include_str!("../runtime/ain_graphics.rs"));
+    if out.contains("babel_wavwrite(") { out.push_str(include_str!("../runtime/babel_audio.rs")); }
+    if out.contains("babel_svgwrite(") || out.contains("babel_gltfwrite(") {
+        out.push_str(include_str!("../runtime/babel_graphics.rs"));
     }
-    if out.contains("ain_tcp_request(") || out.contains("ain_http_serveonce(") {
-        out.push_str(include_str!("../runtime/ain_network.rs"));
+    if out.contains("babel_tcp_request(") || out.contains("babel_http_serveonce(") {
+        out.push_str(include_str!("../runtime/babel_network.rs"));
     }
-    if out.contains("ain_ffi0(") || out.contains("ain_ffi1(") || out.contains("ain_ffi2(") {
-        out.push_str(include_str!("../runtime/ain_ffi.rs"));
+    if out.contains("babel_ffi0(") || out.contains("babel_ffi1(") || out.contains("babel_ffi2(") {
+        out.push_str(include_str!("../runtime/babel_ffi.rs"));
     }
-    if out.contains("ain_tomlparse(") || out.contains("ain_tomlwrite(") {
-        out.push_str(include_str!("../runtime/ain_toml.rs"));
+    if out.contains("babel_tomlparse(") || out.contains("babel_tomlwrite(") {
+        out.push_str(include_str!("../runtime/babel_toml.rs"));
     }
-    if out.contains("ain_fs_list(") || out.contains("ain_fs_mkdir(")
-        || out.contains("ain_fs_remove(") || out.contains("ain_path_join(")
-        || out.contains("ain_working_directory(") || out.contains("ain_process_run(") {
-        out.push_str(include_str!("../runtime/ain_fs_process.rs"));
+    if out.contains("babel_fs_list(") || out.contains("babel_fs_mkdir(")
+        || out.contains("babel_fs_remove(") || out.contains("babel_path_join(")
+        || out.contains("babel_working_directory(") || out.contains("babel_process_run(") {
+        out.push_str(include_str!("../runtime/babel_fs_process.rs"));
     }
-    let uses_gui = out.contains("ain_gui(") || out.contains("ain_guiupdate(") || out.contains("ain_guitick(");
-    let uses_chat = out.contains("ain_chat(");
-    let uses_browser = out.contains("ain_browser(");
-    if uses_gui { out.push_str(include_str!("../runtime/ain_gui.rs")); }
-    if uses_chat || uses_browser { out.push_str(include_str!("../runtime/ain_chat.rs")); }
+    let uses_gui = out.contains("babel_gui(") || out.contains("babel_guiupdate(") || out.contains("babel_guitick(");
+    let uses_chat = out.contains("babel_chat(");
+    let uses_browser = out.contains("babel_browser(");
+    if uses_gui { out.push_str(include_str!("../runtime/babel_gui.rs")); }
+    if uses_chat || uses_browser { out.push_str(include_str!("../runtime/babel_chat.rs")); }
     if uses_browser {
-        out.push_str(&format!("\nconst AIN_BROWSER_DRIVER_SOURCE: &str = {:?};\n", include_str!("../runtime/ain_browser.py")));
-        out.push_str(include_str!("../runtime/ain_browser.rs"));
+        out.push_str(&format!("\nconst BABEL_BROWSER_DRIVER_SOURCE: &str = {:?};\n", include_str!("../runtime/babel_browser.py")));
+        out.push_str(include_str!("../runtime/babel_browser.rs"));
     }
     out
 }
@@ -1222,7 +1222,7 @@ mod tests {
     #[test] fn parametric_identity_instantiates_separately() {
         let s="identity x = x\nprint identity 4\nprint identity \"hello\"\n";
         let rust=compile(s).unwrap().rust;
-        assert!(rust.contains("fn ain_identity<"));
+        assert!(rust.contains("fn babel_identity<"));
         assert!(rust.contains("-> G"));
     }
     #[test] fn type_restrictions_still_enforced() {
@@ -1240,13 +1240,13 @@ mod tests {
     #[test] fn typed_triples_reject_invalid_projection() { assert!(compile("print tuple3fst tuple3 1 2 true").is_ok()); assert!(compile("print tuple3fst tuple2 1 2").is_err()); }
     #[test] fn prefix_and_inferred_functions() {
         let compiled = compile("add a b = + a b\nsquare x = * x x\nprint add square 3 square 4").unwrap();
-        assert!(compiled.rust.contains("fn ain_add(ain_a: i64, ain_b: i64) -> i64"));
-        assert!(compiled.rust.contains("fn ain_square(ain_x: i64) -> i64"));
+        assert!(compiled.rust.contains("fn babel_add(babel_a: i64, babel_b: i64) -> i64"));
+        assert!(compiled.rust.contains("fn babel_square(babel_x: i64) -> i64"));
     }
     #[test] fn unit_function() {
         let c = compile("i _ = print \"I\"\ni _").unwrap();
-        assert!(c.rust.contains("fn ain_i(_unit_0: ()) -> ()"));
-        assert!(c.rust.contains("ain_i(())"));
+        assert!(c.rust.contains("fn babel_i(_unit_0: ()) -> ()"));
+        assert!(c.rust.contains("babel_i(())"));
     }
     #[test] fn terminal_builtins_are_typed() {
         assert!(compile(r#"print encode argv _
@@ -1273,9 +1273,9 @@ print asbool field readline _ "ok"
     #[test] fn generic_desktop_and_ai_builtins() {
         let program = "layout = \"header\\tHello\\nbutton\\tok\\tOK\\n\"\nstate = gui \"Demo\" layout\nprint state\nprint chat \"deepinfra\" \"\" \"hello\"\nprint browser \"read\" \"\"\n";
         let output = compile(program).unwrap().rust;
-        assert!(output.contains("fn ain_gui("));
-        assert!(output.contains("fn ain_chat("));
-        assert!(output.contains("fn ain_browser("));
+        assert!(output.contains("fn babel_gui("));
+        assert!(output.contains("fn babel_chat("));
+        assert!(output.contains("fn babel_browser("));
         assert!(compile("gui 1 \"body\"").is_err());
         assert!(compile("chat \"deepinfra\" \"\"").is_err());
     }
@@ -1287,6 +1287,6 @@ mod air;
 /// Dump the typed AIR expression IR (debugging and optimization inspection).
 pub fn dump_air(source: &str) -> Result<String, CompileError> { air::dump(source) }
 
-/// Emit optimized-backend-ready LLVM IR for the numeric/boolean AIN subset.
+/// Emit optimized-backend-ready LLVM IR for the numeric/boolean BABEL subset.
 /// LLVM codegen uses unboxed types and rejects strings until AIR supports them.
 pub fn compile_llvm(source: &str) -> Result<String, CompileError> { air::llvm(source) }

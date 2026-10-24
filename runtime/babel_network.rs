@@ -1,8 +1,8 @@
 // TCP request/response client and loopback-only one-request HTTP server.
 // Standard Rust networking; no shell process and no new dependencies.
-fn ain_tcp_request(address: String, payload: String) -> AinData {
-    let run = (|| -> Result<AinData, String> {
-        if !ain_permission_allowed("network") { return Err("Ain capability denied: network".into()); }
+fn babel_tcp_request(address: String, payload: String) -> BabelData {
+    let run = (|| -> Result<BabelData, String> {
+        if !babel_permission_allowed("network") { return Err("Babel capability denied: network".into()); }
         if payload.len() > 64 * 1024 { return Err("TCP request exceeds 64 KiB".into()); }
         if address.len() > 1024 { return Err("TCP address too long".into()); }
         use std::io::{Read, Write};
@@ -24,18 +24,18 @@ fn ain_tcp_request(address: String, payload: String) -> AinData {
                         .map_err(|e| e.to_string())?;
                     if reply.len() > 64 * 1024 { return Err("TCP reply exceeds 64 KiB".into()); }
                     let reply = String::from_utf8(reply).map_err(|_| "TCP reply is not UTF-8 text")?;
-                    return Ok(AinData::Text(reply));
+                    return Ok(BabelData::Text(reply));
                 }
                 Err(e) => last_err = format!("TCP connect failed: {e}"),
             }
         }
         Err(last_err)
     })();
-    match run { Ok(value) => ain_result(true, value, ""), Err(err) => ain_result(false, AinData::Null, &err) }
+    match run { Ok(value) => babel_result(true, value, ""), Err(err) => babel_result(false, BabelData::Null, &err) }
 }
-fn ain_http_serveonce(port: i64, response: String) -> AinData {
-    let run = (|| -> Result<AinData, String> {
-        if !ain_permission_allowed("network") { return Err("Ain capability denied: network".into()); }
+fn babel_http_serveonce(port: i64, response: String) -> BabelData {
+    let run = (|| -> Result<BabelData, String> {
+        if !babel_permission_allowed("network") { return Err("Babel capability denied: network".into()); }
         if !(1024..=65535).contains(&port) { return Err("HTTP server port must be 1024..65535".into()); }
         if response.len() > 128 * 1024 { return Err("HTTP server response exceeds 128 KiB".into()); }
         use std::io::{Read, Write};
@@ -83,9 +83,9 @@ fn ain_http_serveonce(port: i64, response: String) -> AinData {
                         connection.write_all(response.as_bytes()).map_err(|e| e.to_string())?;
                     }
                     let mut info = std::collections::BTreeMap::new();
-                    info.insert("method".into(), AinData::Text(tokens[0].into()));
-                    info.insert("path".into(), AinData::Text(tokens[1].into()));
-                    return Ok(AinData::Object(info));
+                    info.insert("method".into(), BabelData::Text(tokens[0].into()));
+                    info.insert("path".into(), BabelData::Text(tokens[1].into()));
+                    return Ok(BabelData::Object(info));
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     if Instant::now() >= until { return Err("HTTP server accept timeout".into()); }
@@ -95,5 +95,5 @@ fn ain_http_serveonce(port: i64, response: String) -> AinData {
             }
         }
     })();
-    match run { Ok(value) => ain_result(true, value, ""), Err(err) => ain_result(false, AinData::Null, &err) }
+    match run { Ok(value) => babel_result(true, value, ""), Err(err) => babel_result(false, BabelData::Null, &err) }
 }

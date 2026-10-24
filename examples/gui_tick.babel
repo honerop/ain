@@ -1,0 +1,3 @@
+# A desktop window whose event loop is driven directly by Babel.
+guiupdate "Babel GUI tick" "header\tNative GTK event loop\nlog\tUI remains responsive while the Babel program works\nentry\tinput\tType here\nbutton\tsend\tSend\nvim\t1\n"
+print guitick 40

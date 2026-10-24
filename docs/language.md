@@ -1,6 +1,6 @@
-# AIN language guide (experimental)
+# BABEL language guide (experimental)
 
-AIN is a compact, statically checked source language using prefix expressions. This guide describes the **currently implemented subset**, not a finalized language standard.
+BABEL is a compact, statically checked source language using prefix expressions. This guide describes the **currently implemented subset**, not a finalized language standard.
 
 ## Definitions and functions
 
@@ -20,7 +20,7 @@ print add 2 3
 - All functions have fixed arity, discovered before expressions are parsed.
 - `_` denotes a unit value or unit parameter. A unit-argument function such as `say _ = print "hi"` is called as `say _`.
 
-AIN currently expects **one definition or expression per source line**. Prefix expressions are nested using function arity, not punctuation.
+BABEL currently expects **one definition or expression per source line**. Prefix expressions are nested using function arity, not punctuation.
 
 ## Prefix expressions
 
@@ -45,7 +45,7 @@ The compiler's `if`, `and` and `or` forms are short-circuiting, so the unused br
 
 The Rust compiler infers **monomorphic primitive types** from literals, operations and function usage:
 
-| AIN value | Type |
+| BABEL value | Type |
 | --- | --- |
 | `42` | signed 64-bit integer |
 | `true` or `false` | Boolean |
@@ -68,15 +68,15 @@ Integer arithmetic is checked for overflow in the available backend paths. Divis
 
 Each operator has a defined arity. For example, `+ 1 2` is valid but `+ 1` is incomplete.
 
-Not all operations are available in the LLVM preview. For unsupported programs, use the Rust backend with `cargo run -- run file.ain`.
+Not all operations are available in the LLVM preview. For unsupported programs, use the Rust backend with `cargo run -- run file.babel`.
 
 ## Examples
 
-- [Arithmetic](../examples/arithmetic.ain)
-- [Recursion](../examples/recursive.ain)
-- [Conditional expressions](../examples/branches.ain)
-- [Strings](../examples/strings.ain)
-- [Unit arguments](../examples/hello.ain)
+- [Arithmetic](../examples/arithmetic.babel)
+- [Recursion](../examples/recursive.babel)
+- [Conditional expressions](../examples/branches.babel)
+- [Strings](../examples/strings.babel)
+- [Unit arguments](../examples/hello.babel)
 
 ## Current limitations
 
@@ -88,21 +88,21 @@ The generic `run` builtin executes one program with one argument, without
 going through a shell. The value returned is the process exit code.
 
 ```text
-status = run "echo" "Hello from Ain"
+status = run "echo" "Hello from Babel"
 print status
 ```
 
 For a more complex application, put native platform libraries and application
 logic in a separate executable, not in the language compiler. The `run` builtin
-can launch that executable without teaching Ain about GTK, browsers or AI providers.
+can launch that executable without teaching Babel about GTK, browsers or AI providers.
 
 **Security:** `run` can execute external programs with the user's permissions.
-Do not run untrusted Ain code. This experimental builtin is not in the LLVM
+Do not run untrusted Babel code. This experimental builtin is not in the LLVM
 backend yet.
 
 ## Native desktop GUI, AI, and browser (Rust native backend)
 
-AIN includes broad, reusable builtins so programs written by AI models can
+BABEL includes broad, reusable builtins so programs written by AI models can
 create desktop apps without switching to Rust, Python or JavaScript.
 
 ```text
@@ -117,7 +117,7 @@ button, Enter key, or close event. Events are returned as `action\\ninput`, with
 literal tab delimiters: `header<TAB>text`, `hint<TAB>text`,
 `log<TAB>text`, `entry<TAB>id<TAB>placeholder`,
 `button<TAB>id<TAB>caption`, and `vim<TAB>1` for Vim keys.
-Ain code can recursively call `gui` to update content and handle events.
+Babel code can recursively call `gui` to update content and handle events.
 
 `chat provider model prompt` returns a text response through either `deepinfra`
 (requires `DEEPINFRA_API_KEY` and curl/jq) or `chatgpt` (requires the official
@@ -133,10 +133,10 @@ All three features are experimental, not yet supported by AIR/LLVM or the
 self-hosted C backend, and are unsupported on platforms lacking their
 dependencies. The GUI event loop currently blocks during network operations.
 
-## Responsive GTK4 applications in Ain
+## Responsive GTK4 applications in Babel
 
 The native backend supports `guiupdate TITLE LAYOUT` to render a GTK4 window
-without blocking the Ain main thread and `guitick MILLISECONDS` to pump GTK
+without blocking the Babel main thread and `guitick MILLISECONDS` to pump GTK
 input events while asynchronous `spawn` tasks run. `guitick` accepts 0-250ms.
 It returns `tick\\n` when no user event is ready or the normal `action\\ninput`
 format used by `gui`. Calls must occur on the GTK main thread.
@@ -152,7 +152,7 @@ invokes the provider, then poll its task with `ready` from a `guitick` loop.
 The native `gui` and nonblocking `guiupdate` layout strings support:
 
 - `image\\tFILENAME\\tSIZE`: picture from a local file with a bounded square size
-  (32..720 px). Requires the Ain `read` builtin capability when restricted.
+  (32..720 px). Requires the Babel `read` builtin capability when restricted.
 - `progress\\tPERCENT\\tCAPTION`: progress bar with bounded 0..100 fraction
   and optional caption.
 - `separator\\t`: horizontal separator between sections.
@@ -160,19 +160,19 @@ The native `gui` and nonblocking `guiupdate` layout strings support:
   horizontal `button` row. Both emit the same `ID\\nINPUT` event format.
 
 Images use GTK's native file loaders and must be explicitly available on the
-machine. All content and event behavior stays in Ain code. These are incremental
+machine. All content and event behavior stays in Babel code. These are incremental
 widgets, not a general virtual DOM, style engine or comprehensive accessibility
 framework.
 
 ## Terminal and CLI applications (Rust native backend)
 
-Ain supports interactive and one-shot CLI applications without a GUI or extra scripting language:
+Babel supports interactive and one-shot CLI applications without a GUI or extra scripting language:
 
 - `argv _` returns a Data list of UTF-8 command-line arguments, excluding the executable path. Use `size`, `get` and `astext` to inspect it.
 - `readline _` reads exactly one stdin line and returns a recoverable Data result with `ok`, `value`, `error` fields. Blank lines are valid; EOF returns `ok=false`, `error="end of input"`. Lines exceeding 1 MiB are rejected.
 - `print` writes a line to stdout. Existing `input _` continues to read all stdin at once.
 
-```ain
+```babel
 loop _ = receive readline _
 receive value = if asbool field value "ok" handle astext field value "value" "done"
 handle line = if == line ":quit" "done" loop print line

@@ -1,9 +1,9 @@
-# Data serialization in Ain
+# Data serialization in Babel
 
 The native Rust backend supports the following compact operations without
 requiring a large dependency tree:
 
-| Ain operation | Type | Behavior |
+| Babel operation | Type | Behavior |
 | --- | --- | --- |
 | `csvparse STRING` | Data | Parse comma-separated rows, quoted fields and CRLF/LF |
 | `trycsv STRING` | Data result | Parse without panicking; `ok`, `value`, `error` |
@@ -20,7 +20,7 @@ when used. CSV operations are implemented in the standard runtime without
 extra crates. This is **zlib data compression**, not gzip file packaging.
 
 ```text
-source = utf8bytes "Hello, Ain"
+source = utf8bytes "Hello, Babel"
 text = b64encode source
 restored = frombytes field b64decode text "value"
 print astext field restored "value"

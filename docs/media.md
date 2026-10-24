@@ -1,6 +1,6 @@
-# Multimedia exporters in Ain
+# Multimedia exporters in Babel
 
-Ain's native backend can export several kinds of media directly from structured
+Babel's native backend can export several kinds of media directly from structured
 `Data` values without third-party language packages.
 
 ## PCM WAV synthesis
@@ -49,7 +49,7 @@ indices. This is asset export, not a rendering engine or complete scene graph.
 
 All three functions return a recoverable Data result with `ok` boolean,
 `value` (written sample/shape/vertex count) and `error` text. They require
-the `write` capability under optional Ain builtin restrictions and use the
+the `write` capability under optional Babel builtin restrictions and use the
 native Rust code-generation backend. None of these features automatically
 brings GTK/Chromium into unrelated programs.
 

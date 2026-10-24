@@ -1,6 +1,6 @@
-# Ain functional data foundation
+# Babel functional data foundation
 
-Ain is a general-purpose language intended exclusively for AI-generated code.
+Babel is a general-purpose language intended exclusively for AI-generated code.
 It is **functional-first**, but deliberately permits explicitly controlled state
 and I/O. An extensive builtin library is a design goal, not a reason to put
 every feature directly into the parser.
@@ -13,8 +13,8 @@ null, Boolean, number, string, list and record values.
 * json STRING parses JSON into Data.
 * tryjson STRING returns a record with ok (boolean), value (Data), and error (text).
 * encode DATA produces canonical JSON with lexicographically sorted object keys.
-* boxint, boxstr and boxbool convert Ain primitives to Data.
-* asint, astext and asbool convert Data back to Ain primitives.
+* boxint, boxstr and boxbool convert Babel primitives to Data.
+* asint, astext and asbool convert Data back to Babel primitives.
 * array _, record _, nil _ create empty lists, records and null.
 * push LIST ITEM and put RECORD KEY VALUE return updated values.
 * get LIST INDEX, field RECORD KEY, hasfield RECORD KEY, keys RECORD,
@@ -25,7 +25,7 @@ types or user-defined structs. Invalid casts or accesses can fail at runtime.
 
 ## Higher-order functional transformations
 
-Callback functions are named Ain functions whose names are passed as STRING
+Callback functions are named Babel functions whose names are passed as STRING
 literals, to avoid the eager-call behavior of fixed-arity prefix parsing.
 
     double x = boxint * asint x 2
@@ -57,7 +57,7 @@ needed. This is not yet an effect system or concurrency support.
 
 ## Machine diagnostics
 
-Run: ainc check-json FILE.ain
+Run: babelc check-json FILE.babel
 
 On success: {"ok":true,"definitions":3}
 On error: {"ok":false,"diagnostics":[{"severity":"error","line":2,"message":"..."}]}
@@ -67,7 +67,7 @@ codes have not yet been implemented.
 
 ## Boundaries
 
-The feature currently targets Ain's Rust code-generation backend, not its
+The feature currently targets Babel's Rust code-generation backend, not its
 experimental AIR/LLVM or self-hosted C backends. JSON parsing is strict
 (up to 8 MiB input and 64 nesting levels); it rejects comments, trailing
 commas, NaN and Infinity. Numbers preserve their textual representation.

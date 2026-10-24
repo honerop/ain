@@ -1,6 +1,6 @@
 # Structured HTTP requests
 
-Ain's native Rust backend supports `httprequest METHOD URL OPTIONS`.
+Babel's native Rust backend supports `httprequest METHOD URL OPTIONS`.
 
 Methods: GET, POST, PUT, PATCH, DELETE, HEAD. The result is a recoverable
 JSON-compatible Data object:
@@ -22,7 +22,7 @@ response was received. The status code is under `value.status`. Transport
 errors, invalid method/URL, unsafe header characters and invalid options return
 `ok: false` with a diagnostic in `error`.
 
-Sample Ain:
+Sample Babel:
 
 ```text
 headers = put record _ "Accept" boxstr "application/json"
@@ -39,7 +39,7 @@ UTF-8 only with a 4 MiB response cap. Response headers are lowercased; duplicate
 headers are concatenated.
 
 The implementation uses the curl executable, without running a shell, and
-requires Ain's `network` permission if `AIN_RESTRICTED=1`.
+requires Babel's `network` permission if `BABEL_RESTRICTED=1`.
 
 **Limitations:** operations are synchronous. HTTP/2/HTTP/3 negotiation depends
 on the installed curl. This is not a streaming API, does not expose sockets,

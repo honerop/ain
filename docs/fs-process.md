@@ -1,6 +1,6 @@
-# Filesystem, paths and subprocesses in Ain
+# Filesystem, paths and subprocesses in Babel
 
-Ain provides compact native operations for common filesystem and process tasks,
+Babel provides compact native operations for common filesystem and process tasks,
 with explicit effects and recoverable errors.
 
 ```text
@@ -8,7 +8,7 @@ folder = pathjoin "reports" "2026"
 print asbool field fsmkdir folder "ok"
 files = fslist folder
 print encode field files "value"
-reply = processrun "printf" push array _ boxstr "Hello Ain"
+reply = processrun "printf" push array _ boxstr "Hello Babel"
 print astext field field reply "value" "stdout"
 ```
 
@@ -22,7 +22,7 @@ print astext field field reply "value" "stdout"
 
 `fslist` limits output to 10,000 entries and requires UTF-8 names.
 `fslist` checks the optional `read` capability, while creation/removal
-checks `write` when `AIN_RESTRICTED=1`.
+checks `write` when `BABEL_RESTRICTED=1`.
 
 ## Subprocess execution
 
@@ -32,7 +32,7 @@ Data record with `ok`, `value`, `error`; `value` contains `code`,
 `stdout`, and `stderr`.
 
 The process has a 10-second timeout by default. For long-running jobs such as
-video encoding, set `AIN_PROCESS_TIMEOUT_MS` to a positive timeout in
+video encoding, set `BABEL_PROCESS_TIMEOUT_MS` to a positive timeout in
 milliseconds (maximum 1,800,000, or 30 minutes). Invalid values fall back to
 10 seconds. The builtin accepts at most 128 arguments and limits
 stdout/stderr to 1 MiB each. Binary output is rejected as a recoverable
@@ -41,7 +41,7 @@ transport failure.
 
 The implementation checks `process` capability when restricted, but
 **this is not a sandbox**: spawned processes run with the actual operating
-system permissions and can have side effects independent of Ain's builtin
+system permissions and can have side effects independent of Babel's builtin
 permission checks. For untrusted generated programs, use OS isolation.
 
 The legacy `run PROGRAM ONE_ARG` convenience builtin remains available,

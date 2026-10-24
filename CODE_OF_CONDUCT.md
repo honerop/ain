@@ -1,6 +1,6 @@
 # Code of conduct
 
-We want AIN discussions and contributions to be constructive.
+We want BABEL discussions and contributions to be constructive.
 
 Contributors and maintainers are expected to treat others respectfully, focus criticism on ideas and code, avoid harassment or discrimination, and respect privacy.
 

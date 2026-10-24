@@ -1,6 +1,6 @@
 # Effects, permissions, and native tasks
 
-Ain is functional-first, but not purely functional. The default approach is
+Babel is functional-first, but not purely functional. The default approach is
 pure transformations on Data; effectful operations are explicit.
 
 ## Files and processes
@@ -22,17 +22,17 @@ headers, streaming, sockets, and a server runtime are not yet available.
 
 ## Optional capability checks
 
-Run generated programs with AIN_RESTRICTED=1 to enable builtin capability
-checking. AIN_PERMISSIONS is a comma-separated allowlist:
+Run generated programs with BABEL_RESTRICTED=1 to enable builtin capability
+checking. BABEL_PERMISSIONS is a comma-separated allowlist:
 
-  AIN_RESTRICTED=1 AIN_PERMISSIONS=read,network ./program
+  BABEL_RESTRICTED=1 BABEL_PERMISSIONS=read,network ./program
 
 Capabilities include read, write, env, process, network, ai, browser, desktop.
 Set all to explicitly grant everything. With restrictions enabled, denied
 builtin effects fail; without restrictions, effects are allowed as before for
 backwards compatibility.
 
-IMPORTANT: this is **not an operating-system sandbox**. It checks Ain's own
+IMPORTANT: this is **not an operating-system sandbox**. It checks Babel's own
 builtins only; it does not prevent arbitrary native code, unsafe FFI or called
 external programs from using permissions granted by the OS. Never execute
 untrusted code outside an actual sandbox.
@@ -42,7 +42,7 @@ gate. New file and HTTP builtins are currently supported by the Rust backend.
 
 ## Asynchronous data tasks
 
-Ain can now spawn a named Data -> Data callback in a native thread:
+Babel can now spawn a named Data -> Data callback in a native thread:
 
     double x = boxint * asint x 2
     task = spawn "double" boxint 21

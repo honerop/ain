@@ -1,4 +1,4 @@
-use ain_compiler::{compile_llvm, dump_air};
+use babel_compiler::{compile_llvm, dump_air};
 use std::fs;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -11,7 +11,7 @@ fn clang_available() -> bool {
 fn execute(source: &str) -> (bool, String) {
     let llvm = compile_llvm(source).expect("AIR lowering");
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    let dir = std::env::temp_dir().join(format!("ain-llvm-test-{}-{stamp}-{}", std::process::id(), TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)));
+    let dir = std::env::temp_dir().join(format!("babel-llvm-test-{}-{stamp}-{}", std::process::id(), TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)));
     fs::create_dir(&dir).unwrap();
     let ir = dir.join("program.ll");
     let binary = dir.join(format!("program{}",std::env::consts::EXE_SUFFIX));
@@ -34,7 +34,7 @@ fn typed_ir_exposes_concrete_types() {
 #[test]
 fn llvm_uses_unboxed_values() {
     let llvm = compile_llvm("square x = * x x\nprint square 8\n").unwrap();
-    assert!(llvm.contains("define i64 @ain_square(i64 %arg0)"));
+    assert!(llvm.contains("define i64 @babel_square(i64 %arg0)"));
     assert!(!llvm.contains("%struct.V"));
     assert!(!llvm.contains("@v_mul"));
 }
@@ -42,9 +42,9 @@ fn llvm_uses_unboxed_values() {
 fn llvm_supports_examples() {
     if !clang_available() { eprintln!("skipping: clang not installed"); return; }
     for (program,expected) in [
-        (include_str!("../examples/arithmetic.ain"),"25\n"),
-        (include_str!("../examples/branches.ain"),"46\n6\n"),
-        (include_str!("../examples/recursive.ain"),"720\n42\n"),
+        (include_str!("../examples/arithmetic.babel"),"25\n"),
+        (include_str!("../examples/branches.babel"),"46\n6\n"),
+        (include_str!("../examples/recursive.babel"),"720\n42\n"),
     ] {
         let (success, out) = execute(program);
         assert!(success);

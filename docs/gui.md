@@ -1,6 +1,6 @@
 # Native desktop layouts
 
-Ain exposes portable native widgets through `gui`, `guiupdate`, and
+Babel exposes portable native widgets through `gui`, `guiupdate`, and
 `guitick`. The renderer uses GTK4 rather than embedding a web browser.
 GTK4 runs on Linux, Windows and macOS when the matching native GTK4 libraries
 and Rust linker toolchain are installed. The existing Nix package remains
@@ -10,7 +10,7 @@ verified by this repository's CI.
 ## Layout format
 
 The `layout` argument is a newline-separated string. Each directive uses
-tabs between fields. AIN strings may encode tabs with `\\t` and newlines
+tabs between fields. BABEL strings may encode tabs with `\\t` and newlines
 with `\\n`.
 
 | Directive | Purpose |
@@ -38,8 +38,8 @@ grid column counts to 1–12. CSS class tokens must be alphanumeric,
 underscore or hyphen (max 64 bytes). App CSS is limited to 64 KiB.
 Unbalanced `end` directives do not pop the root or the active toolbar.
 
-```ain
-guiupdate "Layout demo" "theme\tcyan\ncss\t.ain-panel-custom { background: #203040; padding: 20px; }\ncolumn\tain-panel-custom\t12\tgrow\ntext\tain-heading\tHello\nrow\tactions\t8\nentry\tquery\tAsk something\naction\tsend\tSend\nend\t\ngrid\tchoices\t3\t8\nbutton\t1\tOne\nbutton\t2\tTwo\nbutton\t3\tThree\nend\t\nend\t\n"
+```babel
+guiupdate "Layout demo" "theme\tcyan\ncss\t.babel-panel-custom { background: #203040; padding: 20px; }\ncolumn\tain-panel-custom\t12\tgrow\ntext\tain-heading\tHello\nrow\tactions\t8\nentry\tquery\tAsk something\naction\tsend\tSend\nend\t\ngrid\tchoices\t3\t8\nbutton\t1\tOne\nbutton\t2\tTwo\nbutton\t3\tThree\nend\t\nend\t\n"
 print guitick 50
 ```
 
@@ -62,17 +62,17 @@ messages. This prevents Enter-to-send from jumping to the top. Calling
 
 **Linux**: `nix develop` installs `gtk4` and `pkg-config`, or install your
 distribution's GTK4 development package and run `cargo run -- build
-examples/gui_layout.ain -o layout-demo`.
+examples/gui_layout.babel -o layout-demo`.
 
 **macOS**: install Rust and Xcode Command Line Tools, then `brew install
-pkg-config gtk4`. Build using `cargo run -- build examples/gui_layout.ain
+pkg-config gtk4`. Build using `cargo run -- build examples/gui_layout.babel
 -o layout-demo`. Bundle GTK libraries for distribution.
 
 **Windows**: use the matching 64-bit GNU Rust toolchain and the MSYS2 UCRT64
 `mingw-w64-ucrt-x86_64-gtk4`, `mingw-w64-ucrt-x86_64-pkgconf` and
 `mingw-w64-ucrt-x86_64-toolchain` packages. Make the UCRT64 `bin` directory
-visible to the build and executable, and run `ainc build
-examples/gui_layout.ain -o layout-demo.exe`. The default compiler path for
+visible to the build and executable, and run `babelc build
+examples/gui_layout.babel -o layout-demo.exe`. The default compiler path for
 built or temporary native programs uses `.exe` on Windows. App distribution
 needs its GTK runtime DLLs and resources.
 

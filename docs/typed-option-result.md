@@ -1,6 +1,6 @@
-# Typed Option and Result in Ain
+# Typed Option and Result in Babel
 
-Ain uses functional-first expressions and supports recoverable error values
+Babel uses functional-first expressions and supports recoverable error values
 alongside explicitly effectful operations.
 
 ## Optional values
@@ -37,12 +37,12 @@ print result_error failure
 
 `tryread PATH` is the first native I/O function returning a typed
 Result<String,String> rather than panicking. If
-`AIN_RESTRICTED=1` blocks file reads it returns an error value instead of
+`BABEL_RESTRICTED=1` blocks file reads it returns an error value instead of
 reading the path.
 
 These are not yet generalized algebraic data types with user declarations,
 pattern matching, higher-kinded types, or effects in the type system.
-Ain currently infers types from use and rejects incompatible fallbacks at
+Babel currently infers types from use and rejects incompatible fallbacks at
 compile time. Some unconstrained `option_none` and `result_err` expressions
 still need a type context.
 

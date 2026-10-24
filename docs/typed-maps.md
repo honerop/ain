@@ -1,6 +1,6 @@
-# Typed maps in Ain
+# Typed maps in Babel
 
-Ain's native backend supports **statically inferred homogeneous maps with String keys**.
+Babel's native backend supports **statically inferred homogeneous maps with String keys**.
 Unlike dynamic JSON objects, the compiler ensures every value in a map has a compatible type.
 
 ```text

@@ -1,6 +1,6 @@
-# AIN self-hosted bootstrap compiler.
-# Reads AIN from stdin; emits C (runtime/ain_runtime.h).
-# Functions are pure except input/print. All parsing and codegen are AIN.
+# BABEL self-hosted bootstrap compiler.
+# Reads BABEL from stdin; emits C (runtime/babel_runtime.h).
+# Functions are pure except input/print. All parsing and codegen are BABEL.
 
 pack a b = concat a concat "\n" b
 first p = before p "\n"
@@ -26,7 +26,7 @@ lookup tab n = if == tab "" -1 if == before line tab ":" n num after line tab ":
 arity tab n = if >= lookup tab n 0 lookup tab n lookup base _ n
 
 # Only ASCII names are supported by the v0.1-compatible bootstrap subset.
-id n = concat "ain_" n
+id n = concat "babel_" n
 sym n = if == n "+" "v_add" if == n "-" "v_sub" if == n "*" "v_mul" if == n "/" "v_div" if == n "%" "v_mod" if == n "==" "v_eq" if == n "!=" "v_ne" if == n "<" "v_lt" if == n "<=" "v_le" if == n ">" "v_gt" if == n ">=" "v_ge" if == n "and" "v_and" if == n "or" "v_or" if == n "if" "v_if" if == n "str" "v_str_value" concat "v_" n
 callee tab n = if >= lookup tab n 0 id n sym n
 
@@ -55,6 +55,6 @@ functions src tab = if == src "" "" concat if fn_line line src define line src t
 items src tab = if == src "" "" concat item_line line src tab items next src tab
 item_line s tab = if == word s "" "" if fn_line s "" if val_line s value s tab statement s tab
 program src = emit_all src sigs src
-emit_all src tab = concat "#include \"ain_runtime.h\"\n\n" concat prototypes src concat "\n" concat functions src tab concat "int main(void){\n" concat items src tab "return 0;\n}\n"
+emit_all src tab = concat "#include \"babel_runtime.h\"\n\n" concat prototypes src concat "\n" concat functions src tab concat "int main(void){\n" concat items src tab "return 0;\n}\n"
 
 print program input _

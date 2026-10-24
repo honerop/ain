@@ -1,11 +1,11 @@
-# TOML parsing and serialization in Ain
+# TOML parsing and serialization in Babel
 
-Ain's native Rust backend exposes `tomlparse TEXT` and `tomlwrite DATA`.
+Babel's native Rust backend exposes `tomlparse TEXT` and `tomlwrite DATA`.
 Both return recoverable `Data` results (`ok`, `value`, `error`) instead
 of terminating on invalid content.
 
 ```text
-config = tomlparse "name = \"Ain\"\nport = 8080\n[features]\nunsafe = false"
+config = tomlparse "name = \"Babel\"\nport = 8080\n[features]\nunsafe = false"
 print asbool field config "ok"
 print asint field field config "value" "port"
 out = tomlwrite field config "value"

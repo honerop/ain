@@ -1,15 +1,15 @@
-// Generic browser(op, argument) operation for Ain. Browser implementation
+// Generic browser(op, argument) operation for Babel. Browser implementation
 // is a separately sandboxed Playwright/Chromium process, not app-specific code.
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, ChildStdin, ChildStdout};
-struct AinBrowser {
+struct BabelBrowser {
     process: Child,
     input: ChildStdin,
     output: BufReader<ChildStdout>,
     driver: std::path::PathBuf,
 }
-impl Drop for AinBrowser {
+impl Drop for BabelBrowser {
     fn drop(&mut self) {
         let _ = self.process.kill();
         let _ = self.process.wait();
@@ -17,30 +17,30 @@ impl Drop for AinBrowser {
     }
 }
 thread_local! {
-    static AIN_BROWSER: RefCell<Option<AinBrowser>> = const { RefCell::new(None) };
+    static BABEL_BROWSER: RefCell<Option<BabelBrowser>> = const { RefCell::new(None) };
 }
-fn ain_browser_driver() -> Result<AinBrowser, String> {
+fn babel_browser_driver() -> Result<BabelBrowser, String> {
     let filename = std::env::temp_dir().join(format!(
-        "ain-browser-{}-{}.py", std::process::id(),
+        "babel-browser-{}-{}.py", std::process::id(),
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| e.to_string())?.as_nanos()
     ));
-    std::fs::write(&filename, AIN_BROWSER_DRIVER_SOURCE).map_err(|e| e.to_string())?;
-    let python = std::env::var("AIN_BROWSER_PYTHON").unwrap_or_else(|_| "python3".into());
+    std::fs::write(&filename, BABEL_BROWSER_DRIVER_SOURCE).map_err(|e| e.to_string())?;
+    let python = std::env::var("BABEL_BROWSER_PYTHON").unwrap_or_else(|_| "python3".into());
     let mut process = Command::new(python).arg(&filename)
         .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null())
         .spawn().map_err(|e| format!("Playwright requires Python and the playwright package: {e}"))?;
     let input = process.stdin.take().ok_or("No browser stdin")?;
     let output = BufReader::new(process.stdout.take().ok_or("No browser stdout")?);
-    Ok(AinBrowser { process, input, output, driver: filename })
+    Ok(BabelBrowser { process, input, output, driver: filename })
 }
-fn ain_browser(op: String, argument: String) -> String {
-    let result: Result<String, String> = AIN_BROWSER.with(|cell| {
+fn babel_browser(op: String, argument: String) -> String {
+    let result: Result<String, String> = BABEL_BROWSER.with(|cell| {
         let mut handle = cell.borrow_mut();
-        if handle.is_none() { *handle = Some(ain_browser_driver()?); }
+        if handle.is_none() { *handle = Some(babel_browser_driver()?); }
         let browser = handle.as_mut().unwrap();
         let cmd = format!("{{\"op\":{},\"argument\":{}}}\n",
-            ain_ai_json(&op), ain_ai_json(&argument));
+            babel_ai_json(&op), babel_ai_json(&argument));
         browser.input.write_all(cmd.as_bytes()).map_err(|e| e.to_string())?;
         browser.input.flush().map_err(|e| e.to_string())?;
         let mut line = String::new();

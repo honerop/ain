@@ -1,8 +1,8 @@
-// Generic AI provider primitive exposed to Ain as chat(provider, model, prompt).
+// Generic AI provider primitive exposed to Babel as chat(provider, model, prompt).
 // External provider tokens never enter generated source code.
 use std::io::Write;
 use std::process::{Command, Stdio};
-fn ain_ai_json(text: &str) -> String {
+fn babel_ai_json(text: &str) -> String {
     let mut out = String::from("\"");
     for c in text.chars() {
         match c {
@@ -16,20 +16,20 @@ fn ain_ai_json(text: &str) -> String {
     out.push('"');
     out
 }
-fn ain_ai_model(model: &str) -> Result<(), String> {
+fn babel_ai_model(model: &str) -> Result<(), String> {
     if model.len() > 128 || !model.chars().all(|c|
         c.is_ascii_alphanumeric() || matches!(c, '/'|'-'|'_'|'.'|':')
     ) { return Err("Invalid model identifier".into()); }
     Ok(())
 }
-fn ain_ai_deepinfra(model: &str, prompt: &str) -> Result<String, String> {
+fn babel_ai_deepinfra(model: &str, prompt: &str) -> Result<String, String> {
     let token = std::env::var("DEEPINFRA_API_KEY")
         .map_err(|_| "DEEPINFRA_API_KEY is not set".to_string())?;
     let selected = if model.is_empty() { "zai-org/GLM-5.3-Flash" } else { model };
-    ain_ai_model(selected)?;
+    babel_ai_model(selected)?;
     let payload = format!(
         "{{\"model\":{},\"messages\":[{{\"role\":\"user\",\"content\":{}}}]}}",
-        ain_ai_json(selected), ain_ai_json(prompt));
+        babel_ai_json(selected), babel_ai_json(prompt));
     let mut curl = Command::new("curl").args([
         "--silent", "--show-error", "--fail-with-body", "--max-time", "120",
         "--request", "POST", "https://api.deepinfra.com/v1/openai/chat/completions",
@@ -54,10 +54,10 @@ fn ain_ai_deepinfra(model: &str, prompt: &str) -> Result<String, String> {
     if !output.status.success() { return Err("Unexpected DeepInfra response".into()); }
     Ok(String::from_utf8_lossy(&output.stdout).trim_end().to_string())
 }
-fn ain_ai_codex(model: &str, prompt: &str) -> Result<String, String> {
-    ain_ai_model(model)?;
+fn babel_ai_codex(model: &str, prompt: &str) -> Result<String, String> {
+    babel_ai_model(model)?;
     let filename = std::env::temp_dir().join(format!(
-        "ain-chat-{}-{}.txt", std::process::id(),
+        "babel-chat-{}-{}.txt", std::process::id(),
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| e.to_string())?.as_nanos()
     ));
@@ -79,21 +79,21 @@ fn ain_ai_codex(model: &str, prompt: &str) -> Result<String, String> {
     }
     result.map_err(|e| format!("Codex did not produce a reply: {e}"))
 }
-// Free-provider integration through the official OpenCode CLI. Ain programs
+// Free-provider integration through the official OpenCode CLI. Babel programs
 // contain no OpenCode-specific application language or shell scripts.
 // OpenCode's free model offering may change, and may impose usage limits.
-fn ain_ai_opencode(model: &str, prompt: &str) -> Result<String, String> {
+fn babel_ai_opencode(model: &str, prompt: &str) -> Result<String, String> {
     let selected = if model.is_empty() { "opencode/mimo-v2.6-flash-free" } else { model };
-    ain_ai_model(selected)?;
+    babel_ai_model(selected)?;
     if prompt.len() > 128 * 1024 { return Err("OpenCode prompt exceeds 128 KiB".into()); }
-    let binary = std::env::var("AIN_OPENCODE_BIN").unwrap_or_else(|_| "opencode".into());
+    let binary = std::env::var("BABEL_OPENCODE_BIN").unwrap_or_else(|_| "opencode".into());
     let mut cmd = Command::new(binary);
     // The plan agent is the least-authority default. Workspaces and edits
     // remain explicit Ainex operations; this is NOT a sandbox guarantee.
     cmd.args(["run", "--model", selected, "--format", "json", "--agent", "plan", "--"])
         .arg(prompt);
     // Use regular files to avoid pipe-buffer deadlocks while the CLI thinks.
-    let prefix = std::env::temp_dir().join(format!("ain-opencode-{}-{}",
+    let prefix = std::env::temp_dir().join(format!("babel-opencode-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos()));
@@ -142,18 +142,18 @@ fn ain_ai_opencode(model: &str, prompt: &str) -> Result<String, String> {
         // Some CLI versions emit status/noise outside JSON. Treat only JSON
         // event records as authoritative; malformed JSON-like events fail.
         if !line.trim_start().starts_with('{') { continue; }
-        let value = ain_json_parse(line.into())
+        let value = babel_json_parse(line.into())
             .map_err(|e| format!("Invalid OpenCode JSON event: {e}"))?;
-        let AinData::Object(fields) = value else { continue };
+        let BabelData::Object(fields) = value else { continue };
         match fields.get("type") {
-            Some(AinData::Text(kind)) if kind == "text" => {
-                if let Some(AinData::Object(part)) = fields.get("part") {
-                    if let Some(AinData::Text(text)) = part.get("text") {
+            Some(BabelData::Text(kind)) if kind == "text" => {
+                if let Some(BabelData::Object(part)) = fields.get("part") {
+                    if let Some(BabelData::Text(text)) = part.get("text") {
                         answer.push_str(text);
                     }
                 }
             },
-            Some(AinData::Text(kind)) if kind == "error" => {
+            Some(BabelData::Text(kind)) if kind == "error" => {
                 provider_error = Some(line.chars().take(600).collect::<String>());
             },
             _ => {}
@@ -167,11 +167,11 @@ fn ain_ai_opencode(model: &str, prompt: &str) -> Result<String, String> {
     Ok(answer)
 }
 
-fn ain_chat(provider: String, model: String, prompt: String) -> String {
+fn babel_chat(provider: String, model: String, prompt: String) -> String {
     let result = match provider.as_str() {
-        "deepinfra" => ain_ai_deepinfra(&model, &prompt),
-        "chatgpt" | "codex" => ain_ai_codex(&model, &prompt),
-        "opencode" => ain_ai_opencode(&model, &prompt),
+        "deepinfra" => babel_ai_deepinfra(&model, &prompt),
+        "chatgpt" | "codex" => babel_ai_codex(&model, &prompt),
+        "opencode" => babel_ai_opencode(&model, &prompt),
         _ => Err(format!("Unknown AI provider: {}", provider)),
     };
     result.unwrap_or_else(|error| format!("Provider error: {error}"))
